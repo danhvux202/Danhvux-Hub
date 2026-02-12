@@ -1,4 +1,3 @@
--- @tiktokacckhoe1
 
 hookfunction(require(game:GetService("ReplicatedStorage").Effect.Container.Death), function()
     -- empty block
@@ -3755,10 +3754,10 @@ local v494 = v466:MakeTab({"PvP,Player", "user"})
 local v495 = v466:MakeTab({"Shop", "shoppingCart"})
 local v496 = v466:MakeTab({"Settings", "settings"})
 v484:AddDiscordInvite({
-    Name = "TikTok - NEJI",
+    Name = "TikTok - Danhvux",
     Description = "Link TikTok",
-    Logo = "rbxassetid://123060196429580",
-    Invite = "@tiktokacckhoe1"
+    Logo = "https://img.freepik.com/vector-mien-phi/desain-logo-kombinasi-hurufl-dan-d_557339-377.jpg?semt=ais_hybrid&w=740&q=80",
+    Invite = "@danhvuxx"
 })
 local _ = v485:AddSection({"Select Melee,Sword,Gun,Fruit"})
 _G.SelectWeapon = "Melee"
