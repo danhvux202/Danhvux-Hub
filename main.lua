@@ -3756,7 +3756,7 @@ local v496 = v466:MakeTab({"Settings", "settings"})
 v484:AddDiscordInvite({
     Name = "TikTok - Danhvux",
     Description = "Link TikTok",
-    Logo = "https://img.freepik.com/vector-mien-phi/desain-logo-kombinasi-hurufl-dan-d_557339-377.jpg?semt=ais_hybrid&w=740&q=80",
+    Logo = "rbxassetid://132855999043583",
     Invite = "@danhvuxx"
 })
 local _ = v485:AddSection({"Select Melee,Sword,Gun,Fruit"})
