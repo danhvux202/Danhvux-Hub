@@ -3756,7 +3756,7 @@ local v496 = v466:MakeTab({"Settings", "settings"})
 v484:AddDiscordInvite({
     Name = "TikTok - Danhvux",
     Description = "Link TikTok",
-    Logo = "rbxassetid://132855999043583",
+    Logo = "",
     Invite = "@danhvuxx"
 })
 local _ = v485:AddSection({"Select Melee,Sword,Gun,Fruit"})
@@ -9576,4 +9576,3 @@ v496:AddButton({Title = "Server Hop", Callback = function()
     Hop()
 end})
 return
-
