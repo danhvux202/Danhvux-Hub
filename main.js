@@ -1,9 +1,9 @@
-(function () {
+(function(){
 'use strict';
 
-let currentSpeed = 2;
+let currentSpeed=2;
 
-const accounts = [
+const accounts=[
 {u:"NHAP_TEN_VAO_DAY",p:"NHAP_MAT_KHAU_VAO_DAY"}
 ];
 
@@ -18,7 +18,7 @@ if(!el) return;
 el.focus();
 el.value=value;
 
-['focus','keydown','keypress','input','keyup','change','blur']
+['input','change','keyup','blur']
 .forEach(e=>{
 el.dispatchEvent(new Event(e,{bubbles:true}));
 });
@@ -43,7 +43,7 @@ if(!user) user=i;
 
 });
 
-if(user && password){
+if(user&&password){
 
 deepFill(user,accounts[0].u);
 
@@ -53,9 +53,9 @@ deepFill(password,accounts[0].p);
 
 setTimeout(()=>{
 document.querySelector("button[type=submit]")?.click();
-},400);
+},500);
 
-},400);
+},500);
 
 }
 
@@ -66,8 +66,6 @@ document.querySelector("button[type=submit]")?.click();
 //////////////////////////////////////////////////
 
 function createHub(){
-
-if(!document.body) return;
 
 if(document.getElementById("danhvuxHub")) return;
 
@@ -117,7 +115,7 @@ background:#181825;
 padding:8px;
 border-radius:8px;
 border:1px solid #313244;
-max-height:140px;
+max-height:150px;
 overflow-y:auto;">
 Đang quét bài...
 </div>
@@ -155,7 +153,7 @@ overflow-y:auto;">
 document.body.insertAdjacentHTML("beforeend",html);
 
 //////////////////////////////////////////////////
-// TAB SWITCH
+// TAB
 //////////////////////////////////////////////////
 
 document.getElementById("tabHub").onclick=()=>{
@@ -170,12 +168,12 @@ scanSubjects();
 };
 
 //////////////////////////////////////////////////
-// SPEED CONTROL
+// SPEED
 //////////////////////////////////////////////////
 
 document.getElementById("spdRange").oninput=e=>{
 
-currentSpeed=parseInt(e.target.value)||1;
+currentSpeed=parseInt(e.target.value);
 
 document.getElementById("spdTxt").innerText="x"+currentSpeed;
 
@@ -190,7 +188,7 @@ document.getElementById("btnLogin").onclick=autoLogin;
 }
 
 //////////////////////////////////////////////////
-// SCAN LESSONS
+// SCAN LESSONS (FIXED)
 //////////////////////////////////////////////////
 
 function scanLessons(){
@@ -200,33 +198,41 @@ if(!box) return;
 
 let lessons=[];
 
-document.querySelectorAll("a,div,span,tr,li")
-.forEach(el=>{
+document.querySelectorAll("*").forEach(el=>{
 
 const txt=(el.innerText||"").trim();
 
 if(!txt.includes("%")) return;
 
 const m=txt.match(/(\d+)%/);
+
 if(!m) return;
 
 const percent=parseInt(m[1]);
 
-if(percent<100){
+if(percent>=100) return;
 
-const link=
-el.querySelector("a")?.href ||
-el.getAttribute("href");
+let link=
+el.querySelector("a")?.href||
+el.closest("a")?.href||
+null;
 
-const title=txt.split("\n")[0].trim();
+let title=txt.split("\n")[0];
 
-lessons.push({title,percent,link,el});
+if(title.length>60) title=title.slice(0,60);
 
-}
+lessons.push({
+title,
+percent,
+link,
+el
+});
 
 });
 
-const unique=[...new Map(lessons.map(x=>[x.title,x])).values()];
+const unique=[
+...new Map(lessons.map(x=>[x.title,x])).values()
+];
 
 box.innerHTML="";
 
@@ -254,7 +260,7 @@ div.innerText=`⚡ ${item.title} (${item.percent}%)`;
 
 div.onclick=()=>{
 
-if(item.link && item.link.startsWith("http")){
+if(item.link){
 window.location.href=item.link;
 }else{
 item.el.scrollIntoView();
@@ -270,7 +276,7 @@ box.appendChild(div);
 }
 
 //////////////////////////////////////////////////
-// SCAN SUBJECTS
+// SCAN SUBJECTS (FIXED)
 //////////////////////////////////////////////////
 
 function scanSubjects(){
@@ -278,31 +284,52 @@ function scanSubjects(){
 const box=document.getElementById("subjectTab");
 if(!box) return;
 
-let subjects=[];
+let list=[];
 
-document.querySelectorAll("a,div,span,li")
-.forEach(el=>{
+document.querySelectorAll("a,div,span,li").forEach(el=>{
 
 const txt=(el.innerText||"").trim();
 
 if(!txt) return;
 
-if(txt.includes("GV") || txt.includes("Giáo viên")){
-subjects.push(txt);
+if(txt.includes("GV")||txt.includes("Giáo viên")){
+
+const lines=txt.split("\n");
+
+let subject=lines[0]?.trim();
+
+let teacher="";
+
+lines.forEach(l=>{
+
+let m=l.match(/(?:GV|Giáo viên)[:\s]+(.+)/i);
+
+if(m) teacher=m[1];
+
+});
+
+if(teacher && subject){
+
+list.push(`${teacher} | ${subject}`);
+
+}
+
 }
 
 });
 
-const unique=[...new Set(subjects)];
+const unique=[...new Set(list)];
 
 box.innerHTML="";
 
 if(unique.length===0){
-box.innerHTML="Không phát hiện môn học";
+
+box.innerHTML="Không phát hiện môn";
 return;
+
 }
 
-unique.forEach(s=>{
+unique.forEach(t=>{
 
 const div=document.createElement("div");
 
@@ -313,7 +340,7 @@ background:#313244;
 border-radius:4px;
 `;
 
-div.innerText=s;
+div.innerText=t;
 
 box.appendChild(div);
 
@@ -354,30 +381,20 @@ setTimeout(()=>{
 
 scanLessons();
 
-setInterval(scanLessons,4000);
+setInterval(scanLessons,5000);
 setInterval(videoLoop,1000);
 
 },2000);
 
-setTimeout(autoLogin,2500);
+setTimeout(autoLogin,3000);
 
 }
-
-//////////////////////////////////////////////////
-// INIT
-//////////////////////////////////////////////////
-
-function init(){
 
 if(document.readyState==="loading"){
 document.addEventListener("DOMContentLoaded",start);
 }else{
 start();
 }
-
-}
-
-init();
 
 //////////////////////////////////////////////////
 // HOTKEY
@@ -389,10 +406,9 @@ if(e.key.toLowerCase()==="h"){
 
 const p=document.getElementById("danhvuxHub");
 
-if(p){
+if(p)
 p.style.display=
 p.style.display==="none"?"block":"none";
-}
 
 }
 
