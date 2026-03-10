@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Danhvux Hub Log Edition
+// @name         Danhvux Hub Full
 // @match        https://*.k12online.vn/*
 // @run-at       document-end
 // @grant        none
@@ -15,187 +15,20 @@
 let currentSpeed=2;
 
 const accounts=[
-{
-u:"NHAP_TEN_VAO_DAY",
-p:"NHAP_MAT_KHAU_VAO_DAY"
-}
+{u:"NHAP_TEN_VAO_DAY",p:"NHAP_MAT_KHAU_VAO_DAY"}
 ];
-
-//////////////////////////////////////////////////
-// SPEED LOCK MAX x20
-//////////////////////////////////////////////////
-
-(function(){
-
-const d=Object.getOwnPropertyDescriptor(
-HTMLMediaElement.prototype,
-"playbackRate"
-);
-
-if(!d) return;
-
-Object.defineProperty(
-HTMLMediaElement.prototype,
-"playbackRate",
-{
-get(){return d.get.call(this);},
-set(v){
-
-if(v>20) v=20;
-
-d.set.call(this,v);
-
-}
-}
-);
-
-})();
-
-//////////////////////////////////////////////////
-// PANEL UI
-//////////////////////////////////////////////////
-
-function createPanel(){
-
-if(document.getElementById("danhvux-panel")) return;
-
-const html=`
-<div id="danhvux-panel" style="
-position:fixed;
-top:15px;
-right:15px;
-width:280px;
-background:#11111b;
-color:#cdd6f4;
-border:2px solid #f5e0dc;
-border-radius:12px;
-padding:15px;
-z-index:999999;
-font-family:sans-serif;
-box-shadow:0 10px 40px rgba(0,0,0,.8);
-">
-
-<h3 style="
-margin:0;
-text-align:center;
-color:#f5e0dc;
-border-bottom:1px solid #45475a;
-padding-bottom:6px;">
-Danhvux Hub
-</h3>
-
-<div style="margin-top:12px;font-size:12px;">
-Speed: <b id="speedTxt" style="color:#a6e3a1;">x2</b>
-</div>
-
-<input id="speedRange"
-type="range"
-min="1"
-max="20"
-value="2"
-step="1"
-style="width:100%;margin-top:6px;">
-
-<div id="jumpBox" style="
-margin-top:15px;
-background:#181825;
-border:1px solid #313244;
-padding:8px;
-border-radius:8px;
-font-size:10px;
-max-height:150px;
-overflow:auto;">
-</div>
-
-<button id="loginBtn" style="
-margin-top:10px;
-width:100%;
-padding:10px;
-background:#f5c2e7;
-border:none;
-border-radius:8px;
-font-weight:bold;
-cursor:pointer;">
-AUTO LOGIN
-</button>
-
-<div style="
-margin-top:8px;
-font-size:9px;
-text-align:center;
-color:#6c7086;">
-Nhấn H để ẩn / hiện
-</div>
-
-</div>
-`;
-
-document.body.insertAdjacentHTML("beforeend",html);
-
-initPanel();
-
-}
-
-//////////////////////////////////////////////////
-// PANEL EVENTS
-//////////////////////////////////////////////////
-
-function initPanel(){
-
-const range=document.getElementById("speedRange");
-
-range.oninput=e=>{
-
-currentSpeed=parseFloat(e.target.value);
-
-document.getElementById("speedTxt").innerText="x"+currentSpeed;
-
-const v=document.querySelector("video");
-
-if(v) v.playbackRate=currentSpeed;
-
-};
-
-document.getElementById("loginBtn").onclick=autoLogin;
-
-}
-
-//////////////////////////////////////////////////
-// HUB LOG SYSTEM
-//////////////////////////////////////////////////
-
-function hubLog(text,color){
-
-const box=document.getElementById("jumpBox");
-if(!box) return;
-
-const line=document.createElement("div");
-
-line.textContent=text;
-
-if(color) line.style.color=color;
-
-box.appendChild(line);
-
-box.scrollTop=box.scrollHeight;
-
-}
 
 //////////////////////////////////////////////////
 // AUTO LOGIN
 //////////////////////////////////////////////////
 
-function deepFill(el,val){
-
-if(!el) return;
+function deepFill(el,value){
 
 el.focus();
-el.value=val;
+el.value=value;
 
-[
-'focus','keydown','keypress',
-'input','keyup','change','blur'
-].forEach(e=>{
+['focus','keydown','keypress','input','keyup','change','blur']
+.forEach(e=>{
 el.dispatchEvent(new Event(e,{bubbles:true}));
 });
 
@@ -203,100 +36,236 @@ el.dispatchEvent(new Event(e,{bubbles:true}));
 
 function autoLogin(){
 
-hubLog("🔑 Đang thử auto login...");
+const inputs=document.querySelectorAll("input");
 
-const user=document.querySelector(
-'input[type="text"],#username,input[name="username"]'
-);
+let user,password;
 
-const pass=document.querySelector(
-'input[type="password"],#password'
-);
+inputs.forEach(i=>{
 
-const btn=document.querySelector(
-'button[type="submit"],.btn-login'
-);
+const t=i.type?.toLowerCase();
 
-if(!user||!pass){
+if(t==="password") password=i;
 
-hubLog("⚠ Không phát hiện form login","#f38ba8");
-return;
-
+if(t==="text"||t==="email"){
+if(!user) user=i;
 }
 
-const acc=accounts[0];
+});
 
-deepFill(user,acc.u);
-deepFill(pass,acc.p);
+if(user&&password){
+
+deepFill(user,accounts[0].u);
 
 setTimeout(()=>{
 
-btn?.click();
+deepFill(password,accounts[0].p);
 
-hubLog("🚀 Đã gửi yêu cầu login","#a6e3a1");
+setTimeout(()=>{
 
-},600);
+document
+.querySelector("button[type=submit]")?.click();
+
+},400);
+
+},400);
+
+}
 
 }
 
 //////////////////////////////////////////////////
-// SCAN LESSON
+// PANEL
 //////////////////////////////////////////////////
 
-function startScan(){
+function createHub(){
 
-hubLog("🔍 Đang quét bài học...");
+if(document.getElementById("danhvuxHub")) return;
 
-const lessons=new Set();
+const html=`
 
-function scan(){
+<div id="danhvuxHub" style="
+position:fixed;
+top:10px;
+right:10px;
+z-index:999999;
+background:#11111b;
+color:#cdd6f4;
+padding:15px;
+border-radius:12px;
+border:2px solid #f5e0dc;
+width:280px;
+font-family:sans-serif;
+box-shadow:0 10px 40px rgba(0,0,0,0.8);
+">
 
-document.querySelectorAll("a,div,span").forEach(el=>{
+<h3 style="margin:0;text-align:center;color:#f5e0dc;">
+Danhvux Hub
+</h3>
+
+<div style="margin-top:10px;font-size:12px;">
+Speed: <b id="spdTxt">x2</b>
+</div>
+
+<input id="spdRange"
+type="range"
+min="1"
+max="20"
+value="2"
+style="width:100%;margin-top:5px;">
+
+<div id="jumpBox" style="
+margin-top:15px;
+font-size:11px;
+background:#181825;
+padding:8px;
+border-radius:8px;
+border:1px solid #313244;
+max-height:120px;
+overflow-y:auto;
+">
+Đang quét bài...
+</div>
+
+<button id="btnLogin" style="
+margin-top:10px;
+width:100%;
+background:#a6e3a1;
+border:none;
+padding:10px;
+border-radius:8px;
+cursor:pointer;
+font-weight:bold;
+">
+AUTO LOGIN
+</button>
+
+<div style="
+margin-top:8px;
+font-size:9px;
+text-align:center;
+color:#585b70;
+">
+Phím H để ẩn/hiện
+</div>
+
+</div>
+`;
+
+document.body.insertAdjacentHTML("beforeend",html);
+
+//////////////////////////////////////////////////
+// SPEED CONTROL
+//////////////////////////////////////////////////
+
+const range=document.getElementById("spdRange");
+
+range.oninput=e=>{
+
+currentSpeed=parseInt(e.target.value);
+
+document.getElementById("spdTxt").innerText="x"+currentSpeed;
+
+const v=document.querySelector("video");
+
+if(v) v.playbackRate=currentSpeed;
+
+};
+
+//////////////////////////////////////////////////
+// LOGIN BUTTON
+//////////////////////////////////////////////////
+
+document.getElementById("btnLogin").onclick=autoLogin;
+
+}
+
+//////////////////////////////////////////////////
+// SCAN LESSON <100%
+//////////////////////////////////////////////////
+
+function scanLessons(){
+
+const box=document.getElementById("jumpBox");
+
+if(!box) return;
+
+let lessons=[];
+
+document
+.querySelectorAll("a,div,span,tr,li")
+.forEach(el=>{
 
 const txt=(el.innerText||"").trim();
 
-if(!txt) return;
+if(!txt.includes("%")) return;
 
-if(
-txt.includes("Chưa làm")||
-txt.includes("Incomplete")||
-txt.includes("0%")
-){
+const m=txt.match(/(\d+)%/);
 
-lessons.add(txt);
+if(!m) return;
+
+const percent=parseInt(m[1]);
+
+if(percent<100){
+
+const link=
+el.querySelector("a")?.href ||
+el.getAttribute("href");
+
+const title=txt.split("\n")[0].trim();
+
+lessons.push({
+title,
+percent,
+link,
+el
+});
 
 }
 
 });
 
-render();
+const unique=[
+...new Map(lessons.map(x=>[x.title,x])).values()
+];
 
-}
+if(unique.length===0){
 
-function render(){
+box.innerHTML="🎉 Đã hoàn thành 100%";
 
-if(lessons.size===0){
-
-hubLog("✔ Không phát hiện bài thiếu","#a6e3a1");
 return;
 
 }
 
-hubLog("⚠ Phát hiện "+lessons.size+" bài chưa làm","#f38ba8");
+box.innerHTML="";
 
-lessons.forEach(t=>{
-hubLog("• "+t,"#f38ba8");
-});
+unique.forEach(item=>{
 
+const div=document.createElement("div");
+
+div.style.cssText=`
+padding:6px;
+margin-bottom:4px;
+background:#313244;
+border-radius:4px;
+cursor:pointer;
+border-left:3px solid #f38ba8;
+`;
+
+div.innerText=`⚡ ${item.title} (${item.percent}%)`;
+
+div.onclick=()=>{
+
+if(item.link && item.link.startsWith("http")){
+window.location.href=item.link;
+}else{
+item.el.scrollIntoView();
+item.el.click();
 }
 
-scan();
+};
 
-const observer=new MutationObserver(scan);
+box.appendChild(div);
 
-observer.observe(document.body,{
-childList:true,
-subtree:true
 });
 
 }
@@ -309,26 +278,46 @@ function videoLoop(){
 
 const v=document.querySelector("video");
 
-if(!v) return;
+if(v){
 
 v.muted=true;
 
 if(v.playbackRate!==currentSpeed)
 v.playbackRate=currentSpeed;
 
-if(v.ended){
-
-hubLog("⏭ Video kết thúc → sang bài tiếp");
-
-const next=
-document.querySelector(".btn-next")||
-document.querySelector(".next-lesson")||
-document.querySelector(".next-item");
-
-next?.click();
+if(v.ended)
+document.querySelector(".btn-next,.next-lesson,.next-item")?.click();
 
 }
 
+}
+
+//////////////////////////////////////////////////
+// START
+//////////////////////////////////////////////////
+
+function start(){
+
+createHub();
+
+setTimeout(()=>{
+
+scanLessons();
+
+setInterval(scanLessons,3000);
+
+setInterval(videoLoop,1000);
+
+},2000);
+
+setTimeout(autoLogin,2500);
+
+}
+
+if(document.readyState==="loading"){
+document.addEventListener("DOMContentLoaded",start);
+}else{
+start();
 }
 
 //////////////////////////////////////////////////
@@ -339,44 +328,14 @@ window.addEventListener("keydown",e=>{
 
 if(e.key.toLowerCase()==="h"){
 
-const p=document.getElementById("danhvux-panel");
+const p=document.getElementById("danhvuxHub");
 
-if(!p) return;
-
+if(p)
 p.style.display=
-p.style.display==="none"
-?"block":"none";
+p.style.display==="none"?"block":"none";
 
 }
 
 });
-
-//////////////////////////////////////////////////
-// START
-//////////////////////////////////////////////////
-
-function start(){
-
-createPanel();
-
-hubLog("⚡ Danhvux Hub khởi động...","#a6e3a1");
-
-setTimeout(()=>hubLog("🎬 Kiểm tra video..."),800);
-
-setTimeout(startScan,1200);
-
-setTimeout(autoLogin,2000);
-
-setInterval(videoLoop,1000);
-
-hubLog("✅ Hub sẵn sàng","#a6e3a1");
-
-}
-
-if(document.readyState==="loading"){
-document.addEventListener("DOMContentLoaded",start);
-}else{
-start();
-}
 
 })();
