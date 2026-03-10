@@ -1,3 +1,10 @@
+// ==UserScript==
+// @name         Danhvux Hub Ultimate 3D
+// @match        *://*.k12online.vn/*
+// @run-at       document-end
+// @grant        none
+// ==/UserScript==
+
 (function(){
 
 "use strict";
@@ -76,11 +83,9 @@ document.body.appendChild(panel);
 document.getElementById("speedRange").oninput=e=>{
 
 speed=e.target.value;
-
 document.getElementById("speedTxt").innerText="x"+speed;
 
 const v=document.querySelector("video");
-
 if(v) v.playbackRate=speed;
 
 };
@@ -98,7 +103,7 @@ if(!status) return;
 
 let lessons=[];
 
-document.querySelectorAll("a,div,li").forEach(el=>{
+document.querySelectorAll("*").forEach(el=>{
 
 const txt=(el.innerText||"").trim();
 
@@ -147,7 +152,7 @@ window.location.href=unique[0].link;
 }
 
 //////////////////////////////////////////////////
-// VIDEO CONTROL
+// VIDEO AUTO
 //////////////////////////////////////////////////
 
 setInterval(()=>{
@@ -169,7 +174,7 @@ document.querySelector(".btn-next,.next-item,.next-lesson")?.click();
 },1500);
 
 //////////////////////////////////////////////////
-// MUSIC DISC (NO PLAYER)
+// VINYL MUSIC DISC
 //////////////////////////////////////////////////
 
 function createMusicDisc(){
@@ -181,13 +186,17 @@ box.id="musicBox";
 
 box.innerHTML=`
 
-<div id="disc"></div>
+<div id="vinyl">
+
+<div class="label"></div>
+
+</div>
 
 <div id="musicBanner">🎵 Chưa phát nhạc</div>
 
 <div id="playerUI">
 
-<input id="musicUrl" placeholder="🎧 Dán link YouTube / Spotify">
+<input id="musicUrl" placeholder="🎧 Dán link YouTube">
 
 <div class="controls">
 <button id="playBtn">▶ Phát</button>
@@ -211,16 +220,57 @@ align-items:center;
 font-family:sans-serif;
 }
 
-#disc{
-width:80px;
-height:80px;
+#vinyl{
+
+width:90px;
+height:90px;
 border-radius:50%;
 background:
-radial-gradient(circle,#444 20%,#000 21%,#111 40%,#000 41%);
-cursor:pointer;
-animation:spin 3s linear infinite;
+radial-gradient(circle at center,#000 35%,#111 36%,#000 40%,#111 41%,#000 45%);
+
+box-shadow:
+0 0 8px #000,
+inset 0 0 15px rgba(255,255,255,0.1);
+
+position:relative;
+
+animation:spin 2.5s linear infinite;
 animation-play-state:paused;
-box-shadow:0 0 15px #000;
+
+cursor:pointer;
+
+}
+
+#vinyl::before{
+
+content:"";
+position:absolute;
+inset:0;
+border-radius:50%;
+
+background:
+repeating-radial-gradient(
+circle,
+rgba(255,255,255,0.04) 0px,
+rgba(255,255,255,0.04) 1px,
+transparent 2px,
+transparent 4px
+);
+
+}
+
+.label{
+
+position:absolute;
+width:24px;
+height:24px;
+background:#e11d48;
+border-radius:50%;
+top:50%;
+left:50%;
+transform:translate(-50%,-50%);
+box-shadow:0 0 6px rgba(0,0,0,.8);
+
 }
 
 @keyframes spin{
@@ -282,13 +332,13 @@ position:absolute;
 
 document.body.appendChild(box);
 
-const disc=document.getElementById("disc");
+const vinyl=document.getElementById("vinyl");
 const player=document.getElementById("playerUI");
 const frame=document.getElementById("musicFrame");
 const banner=document.getElementById("musicBanner");
 const input=document.getElementById("musicUrl");
 
-disc.onclick=()=>{
+vinyl.onclick=()=>{
 
 player.style.display=
 player.style.display==="none"?"block":"none";
@@ -302,7 +352,7 @@ if(!url) return;
 
 frame.src=convertMusic(url);
 
-disc.style.animationPlayState="running";
+vinyl.style.animationPlayState="running";
 
 banner.innerText="🎶 Đang phát nhạc";
 
@@ -313,8 +363,7 @@ localStorage.setItem("dvxMusic",url);
 document.getElementById("stopBtn").onclick=()=>{
 
 frame.src="";
-disc.style.animationPlayState="paused";
-
+vinyl.style.animationPlayState="paused";
 banner.innerText="⏹ Đã dừng";
 
 };
@@ -325,7 +374,7 @@ if(saved){
 
 input.value=saved;
 frame.src=convertMusic(saved);
-disc.style.animationPlayState="running";
+vinyl.style.animationPlayState="running";
 banner.innerText="🎶 Đang phát nhạc";
 
 }
@@ -333,7 +382,7 @@ banner.innerText="🎶 Đang phát nhạc";
 }
 
 //////////////////////////////////////////////////
-// CONVERT LINK
+// MUSIC LINK
 //////////////////////////////////////////////////
 
 function convertMusic(url){
@@ -341,7 +390,6 @@ function convertMusic(url){
 if(url.includes("youtube")||url.includes("youtu.be")){
 
 let id=url.split("v=")[1];
-
 if(id) id=id.split("&")[0];
 
 if(!id && url.includes("youtu.be/"))
@@ -351,18 +399,12 @@ return `https://www.youtube.com/embed/${id}?autoplay=1`;
 
 }
 
-if(url.includes("spotify.com")){
-
-return url.replace("track","embed/track");
-
-}
-
 return url;
 
 }
 
 //////////////////////////////////////////////////
-// START HUB
+// START
 //////////////////////////////////////////////////
 
 function startHub(){
