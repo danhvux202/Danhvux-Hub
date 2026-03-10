@@ -4,86 +4,159 @@
 let speed = 2;
 
 //////////////////////////////////////////////////////
-// TẠO HUB
+// TẠO PANEL
 //////////////////////////////////////////////////////
 
 function createHub(){
 
 if(document.getElementById("danhvuxHub")) return;
 
-const hub = document.createElement("div");
-
+const hub=document.createElement("div");
 hub.id="danhvuxHub";
 
-hub.style=`
+hub.innerHTML=`
+
+<div id="dvx-panel">
+
+<div class="dvx-title">Danhvux Hub</div>
+
+<div class="dvx-speed">
+Tốc độ video: <span id="dvx-speed-text">x2</span>
+</div>
+
+<input id="dvx-speed" type="range" min="1" max="16" value="2">
+
+<div class="dvx-stats">
+Bài chưa học: <b id="dvx-count">0</b>
+</div>
+
+<div id="dvx-lessons">
+Đang quét bài học...
+</div>
+
+<div class="dvx-buttons">
+<button id="dvx-scan">Quét lại</button>
+<button id="dvx-hide">Ẩn</button>
+</div>
+
+</div>
+
+<style>
+
+#dvx-panel{
 position:fixed;
 top:20px;
 right:20px;
 width:300px;
-background:#0b0d1a;
+padding:18px;
 border-radius:14px;
-padding:16px;
+backdrop-filter:blur(10px);
+background:rgba(10,12,30,.85);
 color:white;
-z-index:999999;
-border:2px solid #ff4f87;
 font-family:sans-serif;
-box-shadow:0 15px 40px rgba(0,0,0,.6)
-`;
+z-index:999999;
+border:2px solid #ff4fa3;
+box-shadow:0 0 20px rgba(255,80,160,.6);
+}
 
-hub.innerHTML=`
+.dvx-title{
+text-align:center;
+font-size:20px;
+font-weight:700;
+margin-bottom:10px;
+}
 
-<h2 style="text-align:center;margin:0 0 10px 0">
-Danhvux Hub
-</h2>
+.dvx-speed{
+font-size:13px;
+margin-bottom:4px;
+}
 
-<div style="font-size:13px;margin-bottom:4px">
-Tốc độ: <b id="spdTxt">x2</b>
-</div>
+#dvx-speed{
+width:100%;
+margin-bottom:8px;
+}
 
-<input id="spdSlider" type="range" min="1" max="16" value="2"
-style="width:100%">
+.dvx-stats{
+font-size:12px;
+margin-bottom:6px;
+color:#ddd;
+}
 
-<div id="scanBox" style="
-margin-top:10px;
-background:#141627;
+#dvx-lessons{
+background:#12152d;
 padding:8px;
 border-radius:8px;
-max-height:160px;
+max-height:170px;
 overflow:auto;
-font-size:12px
-">
-Đang quét bài học...
-</div>
+font-size:12px;
+}
 
-<button id="autoLogin" style="
+.dvx-lesson{
+padding:6px;
+margin-bottom:4px;
+background:#1e2247;
+border-radius:6px;
+cursor:pointer;
+transition:.2s;
+}
+
+.dvx-lesson:hover{
+background:#2e3470;
+}
+
+.dvx-buttons{
+display:flex;
+gap:6px;
 margin-top:10px;
-width:100%;
-padding:10px;
-background:#9bd39b;
+}
+
+.dvx-buttons button{
+flex:1;
+padding:8px;
 border:none;
 border-radius:8px;
-font-weight:bold;
-cursor:pointer
-">
-TỰ ĐỘNG ĐĂNG NHẬP
-</button>
+cursor:pointer;
+font-weight:600;
+}
+
+#dvx-scan{
+background:#6ea8ff;
+color:white;
+}
+
+#dvx-hide{
+background:#ff6b8a;
+color:white;
+}
+
+</style>
 `;
 
 document.body.appendChild(hub);
 
 //////////////////////////////////////////////////////
-// SPEED
+// SPEED CONTROL
 //////////////////////////////////////////////////////
 
-document.getElementById("spdSlider").oninput=e=>{
+document.getElementById("dvx-speed").oninput=e=>{
 
 speed=parseInt(e.target.value);
 
-document.getElementById("spdTxt").innerText="x"+speed;
+document.getElementById("dvx-speed-text").innerText="x"+speed;
 
 let v=document.querySelector("video");
 if(v) v.playbackRate=speed;
 
+};
+
+//////////////////////////////////////////////////////
+// BUTTONS
+//////////////////////////////////////////////////////
+
+document.getElementById("dvx-scan").onclick=scanLessons;
+
+document.getElementById("dvx-hide").onclick=()=>{
+document.getElementById("dvx-panel").style.display="none";
 };
 
 }
@@ -94,19 +167,20 @@ if(v) v.playbackRate=speed;
 
 function scanLessons(){
 
-let box=document.getElementById("scanBox");
+const box=document.getElementById("dvx-lessons");
+const count=document.getElementById("dvx-count");
+
 if(!box) return;
 
-let items=[...document.querySelectorAll(".ant-tree-node-content-wrapper")];
+let nodes=[...document.querySelectorAll(".ant-tree-node-content-wrapper")];
 
 let lessons=[];
 
-items.forEach(el=>{
+nodes.forEach(el=>{
 
 let text=el.innerText.trim();
 
 let m=text.match(/\((\d+)%\)/);
-
 if(!m) return;
 
 let percent=parseInt(m[1]);
@@ -123,13 +197,11 @@ el
 
 });
 
-//////////////////////////////////////////////////////
-// HIỂN THỊ
-//////////////////////////////////////////////////////
+count.innerText=lessons.length;
 
 if(lessons.length===0){
 
-box.innerHTML="✔ Không còn bài chưa học";
+box.innerHTML="✔ Tất cả bài đã hoàn thành";
 
 return;
 
@@ -141,13 +213,7 @@ lessons.forEach(ls=>{
 
 let div=document.createElement("div");
 
-div.style=`
-padding:6px;
-margin-bottom:4px;
-background:#2b2f4a;
-border-radius:6px;
-cursor:pointer
-`;
+div.className="dvx-lesson";
 
 div.innerText=`⚡ ${ls.name} (${ls.percent}%)`;
 
@@ -189,29 +255,6 @@ if(next) next.click();
 }
 
 //////////////////////////////////////////////////////
-// AUTO LOGIN
-//////////////////////////////////////////////////////
-
-function autoLogin(){
-
-let user=document.querySelector("input[type=text],input[type=email]");
-let pass=document.querySelector("input[type=password]");
-
-if(!user || !pass) return;
-
-user.value="USERNAME";
-pass.value="PASSWORD";
-
-user.dispatchEvent(new Event("input",{bubbles:true}));
-pass.dispatchEvent(new Event("input",{bubbles:true}));
-
-setTimeout(()=>{
-document.querySelector("button[type=submit]")?.click();
-},500);
-
-}
-
-//////////////////////////////////////////////////////
 // START
 //////////////////////////////////////////////////////
 
@@ -223,7 +266,7 @@ setTimeout(()=>{
 
 scanLessons();
 
-setInterval(scanLessons,4000);
+setInterval(scanLessons,5000);
 
 setInterval(videoLoop,1000);
 
@@ -244,10 +287,10 @@ window.addEventListener("keydown",e=>{
 
 if(e.key.toLowerCase()==="h"){
 
-let hub=document.getElementById("danhvuxHub");
+let panel=document.getElementById("dvx-panel");
 
-hub.style.display=
-hub.style.display==="none"
+panel.style.display=
+panel.style.display==="none"
 ?"block":"none";
 
 }
