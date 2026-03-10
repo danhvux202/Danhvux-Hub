@@ -1,4 +1,5 @@
 (function(){
+
 "use strict";
 
 let speed = 2;
@@ -9,10 +10,9 @@ let speed = 2;
 
 function createHub(){
 
-if(document.getElementById("danhvuxHub")) return;
+if(document.getElementById("dvx-panel")) return;
 
 const hub=document.createElement("div");
-hub.id="danhvuxHub";
 
 hub.innerHTML=`
 
@@ -51,7 +51,7 @@ width:300px;
 padding:18px;
 border-radius:14px;
 backdrop-filter:blur(10px);
-background:rgba(10,12,30,.85);
+background:rgba(10,12,30,.9);
 color:white;
 font-family:sans-serif;
 z-index:999999;
@@ -97,7 +97,6 @@ margin-bottom:4px;
 background:#1e2247;
 border-radius:6px;
 cursor:pointer;
-transition:.2s;
 }
 
 .dvx-lesson:hover{
@@ -135,7 +134,7 @@ color:white;
 document.body.appendChild(hub);
 
 //////////////////////////////////////////////////////
-// SPEED CONTROL
+// SPEED
 //////////////////////////////////////////////////////
 
 document.getElementById("dvx-speed").oninput=e=>{
@@ -148,10 +147,6 @@ let v=document.querySelector("video");
 if(v) v.playbackRate=speed;
 
 };
-
-//////////////////////////////////////////////////////
-// BUTTONS
-//////////////////////////////////////////////////////
 
 document.getElementById("dvx-scan").onclick=scanLessons;
 
@@ -167,8 +162,8 @@ document.getElementById("dvx-panel").style.display="none";
 
 function scanLessons(){
 
-const box=document.getElementById("dvx-lessons");
-const count=document.getElementById("dvx-count");
+let box=document.getElementById("dvx-lessons");
+let count=document.getElementById("dvx-count");
 
 if(!box) return;
 
@@ -278,23 +273,5 @@ if(document.readyState==="loading")
 document.addEventListener("DOMContentLoaded",start);
 else
 start();
-
-//////////////////////////////////////////////////////
-// HOTKEY
-//////////////////////////////////////////////////////
-
-window.addEventListener("keydown",e=>{
-
-if(e.key.toLowerCase()==="h"){
-
-let panel=document.getElementById("dvx-panel");
-
-panel.style.display=
-panel.style.display==="none"
-?"block":"none";
-
-}
-
-});
 
 })();
