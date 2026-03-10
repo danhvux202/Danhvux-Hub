@@ -1,3 +1,13 @@
+// ==UserScript==
+// @name         Danhvux-K12-Hub
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  Danhvux Hub
+// @author       Danhvux
+// @match        https://*.k12online.vn/*
+// @run-at       document-start
+// @grant        none
+// ==/UserScript==
 
 (function() {
     'use strict';
