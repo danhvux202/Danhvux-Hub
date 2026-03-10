@@ -238,32 +238,6 @@ type();
 }
 
 //////////////////////////////////////////////////
-// WELCOME LOG
-//////////////////////////////////////////////////
-
-function welcomeLogs(){
-
-hubLog("⚡ Danhvux Hub đang khởi động...","#a6e3a1");
-
-setTimeout(()=>{
-hubLog("🔍 Đang quét hệ thống bài học...");
-},700);
-
-setTimeout(()=>{
-hubLog("🎬 Kiểm tra video...");
-},1400);
-
-setTimeout(()=>{
-hubLog("📊 Chuẩn bị dữ liệu...");
-},2000);
-
-setTimeout(()=>{
-hubLog("🚀 Hub sẵn sàng","#a6e3a1");
-},2600);
-
-}
-
-//////////////////////////////////////////////////
 // SCAN LESSONS <100%
 //////////////////////////////////////////////////
 
