@@ -1,4 +1,3 @@
-// ==UserScript==
 // @name         Danhvux-Panel-Beta-Version
 // @namespace    http://tampermonkey.net/
 // @version      Alpha-1.1.0
