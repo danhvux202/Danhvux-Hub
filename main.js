@@ -22,17 +22,17 @@ panel.id="dvxHub";
 
 panel.innerHTML=`
 
-<div class="dvxTitle">Danhvux Hub</div>
+<div class="dvxTitle">🚀 Danhvux Hub</div>
 
 <div class="dvxRow">
-Tốc độ video: <b id="dvxSpeedTxt">x2</b>
+🎬 Tốc độ video: <b id="dvxSpeedTxt">x2</b>
 </div>
 
 <input id="dvxSpeed" type="range" min="1" max="16" value="2">
 
-<div id="dvxStatus">Đang quét bài...</div>
+<div id="dvxStatus">🔍 Đang quét bài học...</div>
 
-<button id="dvxLogin">Auto Login</button>
+<button id="dvxLogin">🔐 Auto Login</button>
 
 <style>
 
@@ -40,7 +40,7 @@ Tốc độ video: <b id="dvxSpeedTxt">x2</b>
 position:fixed;
 top:25px;
 right:25px;
-width:280px;
+width:300px;
 background:linear-gradient(145deg,#0f172a,#020617);
 color:white;
 border-radius:16px;
@@ -112,7 +112,7 @@ document.getElementById("dvxLogin").onclick=autoLogin;
 }
 
 //////////////////////////////////////////////////
-// SCAN LESSON
+// SCAN LESSON (FIXED)
 //////////////////////////////////////////////////
 
 function scanLessons(){
@@ -121,50 +121,54 @@ const status=document.getElementById("dvxStatus");
 
 if(!status) return;
 
-const lessons=[...document.querySelectorAll("a")];
+let lessons=[];
 
-let list=[];
-
-lessons.forEach(el=>{
+document.querySelectorAll("a,div,li").forEach(el=>{
 
 const txt=(el.innerText||"").trim();
 
 if(!txt.includes("%")) return;
 
-const m=txt.match(/(\d+)%/);
+const match=txt.match(/(\d+)%/);
 
-if(!m) return;
+if(!match) return;
 
-const percent=parseInt(m[1]);
+const percent=parseInt(match[1]);
 
-if(percent<100){
+if(percent>=100) return;
 
-list.push({
-title:txt,
-el:el
+const link=el.href || el.querySelector("a")?.href;
+
+if(!link) return;
+
+lessons.push({
+title:txt.split("\n")[0],
+link:link
 });
+
+});
+
+const unique=[...new Map(lessons.map(x=>[x.title,x])).values()];
+
+window.dvxLessons=unique;
+
+if(unique.length===0){
+
+status.innerText="🎉 Tất cả bài đã hoàn thành!";
+
+return;
 
 }
 
-});
+const first=unique[0];
 
-window.dvxLessons=list;
-
-if(list.length===0){
-
-status.innerText="🎉 Đã hoàn thành 100%";
-
-}else{
-
-status.innerText="⚡ "+list[0].title;
+status.innerText=`⚡ ${first.title} (${unique.length} bài chưa học)`;
 
 status.onclick=()=>{
 
-list[0].el.click();
+window.location.href=first.link;
 
 };
-
-}
 
 }
 
@@ -182,7 +186,7 @@ v.playbackRate=speed;
 
 if(v.ended){
 
-const next=document.querySelector(".btn-next,.next-item");
+const next=document.querySelector(".btn-next,.next-item,.next-lesson");
 
 if(next) next.click();
 
@@ -207,7 +211,7 @@ if(user && pass){
 user.value=account.user;
 pass.value=account.pass;
 
-if(btn) btn.click();
+btn?.click();
 
 }
 
@@ -237,7 +241,8 @@ setTimeout(()=>{
 
 createPanel();
 scanLessons();
-setInterval(scanLessons,4000);
+
+setInterval(scanLessons,5000);
 
 },2000);
 
