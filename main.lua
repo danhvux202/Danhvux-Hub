@@ -1,13 +1,3 @@
-// ==UserScript==
-// @name         Danhvux-Panel-Beta-Version
-// @namespace    http://tampermonkey.net/
-// @version      Alpha-1.0.0
-// @description  Sửa lỗi Auto Login
-// @author       Danhvux
-// @match        https://*.k12online.vn/*
-// @run-at       document-start
-// @grant        none
-// ==/UserScript==
 
 (function() {
     'use strict';
