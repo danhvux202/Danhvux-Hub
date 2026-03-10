@@ -1,3 +1,10 @@
+// ==UserScript==
+// @name         Danhvux Hub Ultimate
+// @match        *://*.k12online.vn/*
+// @run-at       document-end
+// @grant        none
+// ==/UserScript==
+
 (function(){
 
 "use strict";
@@ -98,7 +105,7 @@ if(!status) return;
 
 let lessons=[];
 
-document.querySelectorAll("*").forEach(el=>{
+document.querySelectorAll("a,div,li").forEach(el=>{
 
 const txt=(el.innerText||"").trim();
 
@@ -130,7 +137,7 @@ const unique=[...new Map(lessons.map(x=>[x.title,x])).values()];
 
 if(unique.length===0){
 
-status.innerText="🎉 Tất cả đã hoàn thành";
+status.innerText="🎉 Đã hoàn thành tất cả";
 
 }else{
 
@@ -169,7 +176,7 @@ document.querySelector(".btn-next,.next-item,.next-lesson")?.click();
 },1500);
 
 //////////////////////////////////////////////////
-// MUSIC DISC
+// MUSIC DISC (NO PLAYER)
 //////////////////////////////////////////////////
 
 function createMusicDisc(){
@@ -185,20 +192,18 @@ box.innerHTML=`
 
 <div id="musicBanner">🎵 Chưa phát nhạc</div>
 
-<div id="player">
+<div id="playerUI">
 
-<input id="musicUrl" placeholder="🎧 YouTube / Spotify link">
+<input id="musicUrl" placeholder="🎧 Dán link YouTube / Spotify">
 
 <div class="controls">
-
-<button id="playBtn">▶</button>
-<button id="stopBtn">⏹</button>
+<button id="playBtn">▶ Phát</button>
+<button id="stopBtn">⏹ Dừng</button>
+</div>
 
 </div>
 
-<iframe id="frame"></iframe>
-
-</div>
+<iframe id="musicFrame"></iframe>
 
 <style>
 
@@ -220,34 +225,35 @@ border-radius:50%;
 background:
 radial-gradient(circle,#444 20%,#000 21%,#111 40%,#000 41%);
 cursor:pointer;
-animation:spin 4s linear infinite;
+animation:spin 3s linear infinite;
 animation-play-state:paused;
+box-shadow:0 0 15px #000;
 }
 
 @keyframes spin{
-from{transform:rotate(0)}
+from{transform:rotate(0deg)}
 to{transform:rotate(360deg)}
 }
 
 #musicBanner{
 margin-top:6px;
-background:rgba(0,0,0,.7);
+background:rgba(0,0,0,.75);
 color:white;
 font-size:12px;
 padding:4px 8px;
 border-radius:6px;
 }
 
-#player{
+#playerUI{
 display:none;
 margin-top:8px;
-width:260px;
+width:220px;
 background:rgba(0,0,0,.9);
 padding:10px;
 border-radius:12px;
 }
 
-#player input{
+#playerUI input{
 width:100%;
 padding:6px;
 border:none;
@@ -258,7 +264,6 @@ margin-bottom:6px;
 .controls{
 display:flex;
 gap:6px;
-margin-bottom:6px;
 }
 
 .controls button{
@@ -271,11 +276,12 @@ color:white;
 cursor:pointer;
 }
 
-#frame{
-width:100%;
-height:120px;
-border:none;
-border-radius:6px;
+#musicFrame{
+width:0;
+height:0;
+border:0;
+opacity:0;
+position:absolute;
 }
 
 </style>
@@ -284,8 +290,8 @@ border-radius:6px;
 document.body.appendChild(box);
 
 const disc=document.getElementById("disc");
-const player=document.getElementById("player");
-const frame=document.getElementById("frame");
+const player=document.getElementById("playerUI");
+const frame=document.getElementById("musicFrame");
 const banner=document.getElementById("musicBanner");
 const input=document.getElementById("musicUrl");
 
@@ -315,6 +321,7 @@ document.getElementById("stopBtn").onclick=()=>{
 
 frame.src="";
 disc.style.animationPlayState="paused";
+
 banner.innerText="⏹ Đã dừng";
 
 };
@@ -333,7 +340,7 @@ banner.innerText="🎶 Đang phát nhạc";
 }
 
 //////////////////////////////////////////////////
-// MUSIC LINK
+// CONVERT LINK
 //////////////////////////////////////////////////
 
 function convertMusic(url){
@@ -347,7 +354,7 @@ if(id) id=id.split("&")[0];
 if(!id && url.includes("youtu.be/"))
 id=url.split("youtu.be/")[1];
 
-return "https://www.youtube.com/embed/"+id;
+return `https://www.youtube.com/embed/${id}?autoplay=1`;
 
 }
 
@@ -362,7 +369,7 @@ return url;
 }
 
 //////////////////////////////////////////////////
-// START
+// START HUB
 //////////////////////////////////////////////////
 
 function startHub(){
