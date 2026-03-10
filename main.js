@@ -1,6 +1,6 @@
 ```javascript
 // ==UserScript==
-// @name         Danhvux Hub Full
+// @name         Danhvux Hub Full V2
 // @match        https://*.k12online.vn/*
 // @run-at       document-end
 // @grant        none
@@ -9,10 +9,6 @@
 (function(){
 'use strict';
 
-//////////////////////////////////////////////////
-// CONFIG
-//////////////////////////////////////////////////
-
 let currentSpeed=2;
 
 const accounts=[
@@ -20,7 +16,7 @@ const accounts=[
 ];
 
 //////////////////////////////////////////////////
-// LOGIN
+// AUTO LOGIN
 //////////////////////////////////////////////////
 
 function deepFill(el,value){
@@ -63,8 +59,7 @@ deepFill(password,accounts[0].p);
 
 setTimeout(()=>{
 
-document
-.querySelector("button[type=submit]")?.click();
+document.querySelector("button[type=submit]")?.click();
 
 },400);
 
@@ -91,10 +86,10 @@ right:10px;
 z-index:999999;
 background:#11111b;
 color:#cdd6f4;
-padding:15px;
+padding:12px;
 border-radius:12px;
 border:2px solid #f5e0dc;
-width:280px;
+width:300px;
 font-family:sans-serif;
 box-shadow:0 10px 40px rgba(0,0,0,0.8);
 ">
@@ -103,7 +98,16 @@ box-shadow:0 10px 40px rgba(0,0,0,0.8);
 Danhvux Hub
 </h3>
 
-<div style="margin-top:10px;font-size:12px;">
+<div style="display:flex;margin-top:8px;gap:4px">
+
+<button id="tabHub" style="flex:1">HUB</button>
+<button id="tabSubjects" style="flex:1">MÔN</button>
+
+</div>
+
+<div id="hubTab" style="margin-top:8px">
+
+<div style="font-size:12px">
 Speed: <b id="spdTxt">x2</b>
 </div>
 
@@ -112,41 +116,45 @@ type="range"
 min="1"
 max="20"
 value="2"
-style="width:100%;margin-top:5px;">
+style="width:100%">
 
 <div id="jumpBox" style="
-margin-top:15px;
+margin-top:10px;
 font-size:11px;
 background:#181825;
 padding:8px;
 border-radius:8px;
 border:1px solid #313244;
-max-height:120px;
-overflow-y:auto;
-">
-Đang khởi động hub...
+max-height:140px;
+overflow-y:auto;">
+Đang quét bài...
 </div>
 
 <button id="btnLogin" style="
-margin-top:10px;
+margin-top:8px;
 width:100%;
 background:#a6e3a1;
 border:none;
 padding:10px;
 border-radius:8px;
 cursor:pointer;
-font-weight:bold;
-">
+font-weight:bold;">
 AUTO LOGIN
 </button>
 
-<div style="
-margin-top:8px;
-font-size:9px;
-text-align:center;
-color:#585b70;
-">
-Phím H để ẩn/hiện
+</div>
+
+<div id="subjectTab" style="
+display:none;
+margin-top:10px;
+font-size:11px;
+background:#181825;
+padding:8px;
+border-radius:8px;
+border:1px solid #313244;
+max-height:180px;
+overflow-y:auto;">
+Đang quét môn học...
 </div>
 
 </div>
@@ -155,12 +163,30 @@ Phím H để ẩn/hiện
 document.body.insertAdjacentHTML("beforeend",html);
 
 //////////////////////////////////////////////////
+// TAB SWITCH
+//////////////////////////////////////////////////
+
+document.getElementById("tabHub").onclick=()=>{
+
+document.getElementById("hubTab").style.display="block";
+document.getElementById("subjectTab").style.display="none";
+
+};
+
+document.getElementById("tabSubjects").onclick=()=>{
+
+document.getElementById("hubTab").style.display="none";
+document.getElementById("subjectTab").style.display="block";
+
+scanSubjects();
+
+};
+
+//////////////////////////////////////////////////
 // SPEED CONTROL
 //////////////////////////////////////////////////
 
-const range=document.getElementById("spdRange");
-
-range.oninput=e=>{
+document.getElementById("spdRange").oninput=e=>{
 
 currentSpeed=parseInt(e.target.value);
 
@@ -177,71 +203,13 @@ document.getElementById("btnLogin").onclick=autoLogin;
 }
 
 //////////////////////////////////////////////////
-// TYPEWRITER LOG SYSTEM
-//////////////////////////////////////////////////
-
-let logQueue=[];
-let logRunning=false;
-
-function hubLog(text,color){
-
-logQueue.push({text,color});
-
-if(!logRunning) runLog();
-
-}
-
-function runLog(){
-
-if(logQueue.length===0){
-
-logRunning=false;
-return;
-
-}
-
-logRunning=true;
-
-const item=logQueue.shift();
-
-const box=document.getElementById("jumpBox");
-
-const line=document.createElement("div");
-
-if(item.color) line.style.color=item.color;
-
-box.appendChild(line);
-
-let i=0;
-
-function type(){
-
-if(i<item.text.length){
-
-line.textContent+=item.text[i];
-i++;
-
-box.scrollTop=box.scrollHeight;
-
-setTimeout(type,20);
-
-}else{
-
-setTimeout(runLog,400);
-
-}
-
-}
-
-type();
-
-}
-
-//////////////////////////////////////////////////
 // SCAN LESSONS <100%
 //////////////////////////////////////////////////
 
 function scanLessons(){
+
+const box=document.getElementById("jumpBox");
+if(!box) return;
 
 let lessons=[];
 
@@ -254,7 +222,6 @@ const txt=(el.innerText||"").trim();
 if(!txt.includes("%")) return;
 
 const m=txt.match(/(\d+)%/);
-
 if(!m) return;
 
 const percent=parseInt(m[1]);
@@ -277,18 +244,100 @@ const unique=[
 ...new Map(lessons.map(x=>[x.title,x])).values()
 ];
 
+box.innerHTML="";
+
 if(unique.length===0){
 
-hubLog("✔ Không phát hiện bài chưa học","#a6e3a1");
+box.innerHTML="🎉 Đã hoàn thành 100%";
 return;
 
 }
 
-hubLog("⚠ Phát hiện "+unique.length+" bài chưa học","#f38ba8");
-
 unique.forEach(item=>{
 
-hubLog("• "+item.title+" ("+item.percent+"%)","#f38ba8");
+const div=document.createElement("div");
+
+div.style.cssText=`
+padding:6px;
+margin-bottom:4px;
+background:#313244;
+border-radius:4px;
+cursor:pointer;
+border-left:3px solid #f38ba8;
+`;
+
+div.innerText=`⚡ ${item.title} (${item.percent}%)`;
+
+div.onclick=()=>{
+
+if(item.link && item.link.startsWith("http")){
+window.location.href=item.link;
+}else{
+item.el.scrollIntoView();
+item.el.click();
+}
+
+};
+
+box.appendChild(div);
+
+});
+
+}
+
+//////////////////////////////////////////////////
+// SCAN SUBJECTS
+//////////////////////////////////////////////////
+
+function scanSubjects(){
+
+const box=document.getElementById("subjectTab");
+if(!box) return;
+
+let subjects=[];
+
+document
+.querySelectorAll("a,div,span,li")
+.forEach(el=>{
+
+const txt=(el.innerText||"").trim();
+
+if(!txt) return;
+
+if(
+txt.includes("GV") ||
+txt.includes("Giáo viên")
+){
+subjects.push(txt);
+}
+
+});
+
+const unique=[...new Set(subjects)];
+
+box.innerHTML="";
+
+if(unique.length===0){
+
+box.innerHTML="Không phát hiện môn học";
+return;
+
+}
+
+unique.forEach(s=>{
+
+const div=document.createElement("div");
+
+div.style.cssText=`
+padding:6px;
+margin-bottom:4px;
+background:#313244;
+border-radius:4px;
+`;
+
+div.innerText=s;
+
+box.appendChild(div);
 
 });
 
@@ -326,19 +375,13 @@ createHub();
 
 setTimeout(()=>{
 
-welcomeLogs();
-
-setTimeout(()=>{
-
 scanLessons();
 
-setInterval(scanLessons,5000);
+setInterval(scanLessons,4000);
 
 setInterval(videoLoop,1000);
 
-},3500);
-
-},800);
+},2000);
 
 setTimeout(autoLogin,2500);
 
