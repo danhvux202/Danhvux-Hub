@@ -1,198 +1,158 @@
 (function(){
-'use strict';
+"use strict";
 
-let tocDoVideo = 2;
+let speed = 2;
 
-//////////////////////////////////////////////////
-// TÀI KHOẢN
-//////////////////////////////////////////////////
+//////////////////////////////////////////////////////
+// TẠO HUB
+//////////////////////////////////////////////////////
 
-const taiKhoan=[
-{u:"USERNAME",p:"PASSWORD"}
-];
-
-//////////////////////////////////////////////////
-// TỰ ĐỘNG ĐĂNG NHẬP
-//////////////////////////////////////////////////
-
-function dienInput(el,val){
-
-if(!el) return;
-
-el.focus();
-el.value=val;
-
-["input","change","keyup"].forEach(e=>{
-el.dispatchEvent(new Event(e,{bubbles:true}));
-});
-
-}
-
-function tuDongDangNhap(){
-
-const user=document.querySelector("input[type=text],input[type=email]");
-const pass=document.querySelector("input[type=password]");
-
-if(user && pass){
-
-dienInput(user,taiKhoan[0].u);
-
-setTimeout(()=>{
-
-dienInput(pass,taiKhoan[0].p);
-
-setTimeout(()=>{
-document.querySelector("button[type=submit]")?.click();
-},500);
-
-},500);
-
-}
-
-}
-
-//////////////////////////////////////////////////
-// TẠO PANEL HUB
-//////////////////////////////////////////////////
-
-function taoHub(){
+function createHub(){
 
 if(document.getElementById("danhvuxHub")) return;
 
-const html=`
+const hub = document.createElement("div");
 
-<div id="danhvuxHub" style="
+hub.id="danhvuxHub";
+
+hub.style=`
 position:fixed;
-top:10px;
-right:10px;
+top:20px;
+right:20px;
 width:300px;
-background:#0f0f1a;
-border-radius:12px;
-padding:12px;
+background:#0b0d1a;
+border-radius:14px;
+padding:16px;
 color:white;
 z-index:999999;
-border:2px solid #f38ba8;
+border:2px solid #ff4f87;
 font-family:sans-serif;
-box-shadow:0 10px 40px rgba(0,0,0,.6);
-">
+box-shadow:0 15px 40px rgba(0,0,0,.6)
+`;
 
-<h3 style="margin:0;text-align:center">Danhvux Hub</h3>
+hub.innerHTML=`
 
-<div style="font-size:12px;margin-top:8px">
-Tốc độ video: <b id="txtTocDo">x2</b>
+<h2 style="text-align:center;margin:0 0 10px 0">
+Danhvux Hub
+</h2>
+
+<div style="font-size:13px;margin-bottom:4px">
+Tốc độ: <b id="spdTxt">x2</b>
 </div>
 
-<input id="rangeTocDo" type="range" min="1" max="20" value="2" style="width:100%">
+<input id="spdSlider" type="range" min="1" max="16" value="2"
+style="width:100%">
 
-<div id="hopBaiHoc" style="
+<div id="scanBox" style="
 margin-top:10px;
-background:#181825;
+background:#141627;
 padding:8px;
 border-radius:8px;
-font-size:11px;
-max-height:170px;
-overflow:auto">
+max-height:160px;
+overflow:auto;
+font-size:12px
+">
 Đang quét bài học...
 </div>
 
-<button id="btnLogin" style="
-margin-top:8px;
+<button id="autoLogin" style="
+margin-top:10px;
 width:100%;
 padding:10px;
-background:#a6e3a1;
+background:#9bd39b;
 border:none;
 border-radius:8px;
 font-weight:bold;
-cursor:pointer">
+cursor:pointer
+">
 TỰ ĐỘNG ĐĂNG NHẬP
 </button>
-
-</div>
 `;
 
-document.body.insertAdjacentHTML("beforeend",html);
+document.body.appendChild(hub);
 
-//////////////////////////////////////////////////
-// ĐIỀU CHỈNH TỐC ĐỘ VIDEO
-//////////////////////////////////////////////////
+//////////////////////////////////////////////////////
+// SPEED
+//////////////////////////////////////////////////////
 
-const spd=document.getElementById("rangeTocDo");
+document.getElementById("spdSlider").oninput=e=>{
 
-spd.oninput=e=>{
+speed=parseInt(e.target.value);
 
-tocDoVideo=parseInt(e.target.value);
+document.getElementById("spdTxt").innerText="x"+speed;
 
-document.getElementById("txtTocDo").innerText="x"+tocDoVideo;
-
-const v=document.querySelector("video");
-if(v) v.playbackRate=tocDoVideo;
+let v=document.querySelector("video");
+if(v) v.playbackRate=speed;
 
 };
 
-document.getElementById("btnLogin").onclick=tuDongDangNhap;
-
 }
 
-//////////////////////////////////////////////////
-// QUÉT BÀI HỌC CHƯA 100%
-//////////////////////////////////////////////////
+//////////////////////////////////////////////////////
+// QUÉT BÀI
+//////////////////////////////////////////////////////
 
-function quetBaiHoc(){
+function scanLessons(){
 
-const box=document.getElementById("hopBaiHoc");
+let box=document.getElementById("scanBox");
 if(!box) return;
 
-const nodes=document.querySelectorAll(".ant-tree-node-content-wrapper");
+let items=[...document.querySelectorAll(".ant-tree-node-content-wrapper")];
 
-let danhSach=[];
+let lessons=[];
 
-nodes.forEach(node=>{
+items.forEach(el=>{
 
-const text=node.innerText.trim();
+let text=el.innerText.trim();
 
-const m=text.match(/\((\d+)%\)/);
+let m=text.match(/\((\d+)%\)/);
+
 if(!m) return;
 
-const percent=parseInt(m[1]);
+let percent=parseInt(m[1]);
 
 if(percent>=100) return;
 
-const ten=text.replace(/\(\d+%\)/,"").trim();
+let name=text.replace(/\(\d+%\)/,"").trim();
 
-danhSach.push({
-title:ten,
-percent:percent,
-node:node
+lessons.push({
+name,
+percent,
+el
 });
 
 });
 
-box.innerHTML="";
+//////////////////////////////////////////////////////
+// HIỂN THỊ
+//////////////////////////////////////////////////////
 
-if(danhSach.length===0){
+if(lessons.length===0){
 
-box.innerHTML="🎉 Tất cả bài học đã hoàn thành";
+box.innerHTML="✔ Không còn bài chưa học";
+
 return;
 
 }
 
-danhSach.forEach(item=>{
+box.innerHTML="";
 
-const div=document.createElement("div");
+lessons.forEach(ls=>{
 
-div.style.cssText=`
+let div=document.createElement("div");
+
+div.style=`
 padding:6px;
 margin-bottom:4px;
-background:#313244;
+background:#2b2f4a;
 border-radius:6px;
-cursor:pointer;
-border-left:3px solid #f38ba8;
+cursor:pointer
 `;
 
-div.textContent=`⚡ ${item.title} (${item.percent}%)`;
+div.innerText=`⚡ ${ls.name} (${ls.percent}%)`;
 
 div.onclick=()=>{
-item.node.click();
+ls.el.click();
 };
 
 box.appendChild(div);
@@ -201,72 +161,94 @@ box.appendChild(div);
 
 }
 
-//////////////////////////////////////////////////
-// TỰ ĐỘNG VIDEO
-//////////////////////////////////////////////////
+//////////////////////////////////////////////////////
+// VIDEO AUTO
+//////////////////////////////////////////////////////
 
-function tuDongVideo(){
+function videoLoop(){
 
-const v=document.querySelector("video");
+let v=document.querySelector("video");
 
 if(!v) return;
 
 v.muted=true;
 
-if(v.playbackRate!==tocDoVideo)
-v.playbackRate=tocDoVideo;
+if(v.playbackRate!==speed)
+v.playbackRate=speed;
 
 if(v.ended){
 
-document.querySelector(
+let next=document.querySelector(
 ".btn-next,.next-item,.ant-btn-primary"
-)?.click();
+);
+
+if(next) next.click();
 
 }
 
 }
 
-//////////////////////////////////////////////////
-// KHỞI ĐỘNG
-//////////////////////////////////////////////////
+//////////////////////////////////////////////////////
+// AUTO LOGIN
+//////////////////////////////////////////////////////
 
-function batDau(){
+function autoLogin(){
 
-taoHub();
+let user=document.querySelector("input[type=text],input[type=email]");
+let pass=document.querySelector("input[type=password]");
+
+if(!user || !pass) return;
+
+user.value="USERNAME";
+pass.value="PASSWORD";
+
+user.dispatchEvent(new Event("input",{bubbles:true}));
+pass.dispatchEvent(new Event("input",{bubbles:true}));
+
+setTimeout(()=>{
+document.querySelector("button[type=submit]")?.click();
+},500);
+
+}
+
+//////////////////////////////////////////////////////
+// START
+//////////////////////////////////////////////////////
+
+function start(){
+
+createHub();
 
 setTimeout(()=>{
 
-quetBaiHoc();
+scanLessons();
 
-setInterval(quetBaiHoc,5000);
+setInterval(scanLessons,4000);
 
-setInterval(tuDongVideo,1000);
+setInterval(videoLoop,1000);
 
 },2000);
 
-setTimeout(tuDongDangNhap,3000);
-
 }
 
-if(document.readyState==="loading"){
-document.addEventListener("DOMContentLoaded",batDau);
-}else{
-batDau();
-}
+if(document.readyState==="loading")
+document.addEventListener("DOMContentLoaded",start);
+else
+start();
 
-//////////////////////////////////////////////////
-// PHÍM TẮT ẨN HIỆN HUB
-//////////////////////////////////////////////////
+//////////////////////////////////////////////////////
+// HOTKEY
+//////////////////////////////////////////////////////
 
 window.addEventListener("keydown",e=>{
 
 if(e.key.toLowerCase()==="h"){
 
-const hub=document.getElementById("danhvuxHub");
+let hub=document.getElementById("danhvuxHub");
 
-if(hub)
 hub.style.display=
-hub.style.display==="none"?"block":"none";
+hub.style.display==="none"
+?"block":"none";
 
 }
 
