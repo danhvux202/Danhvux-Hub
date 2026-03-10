@@ -17,10 +17,10 @@ panel.id="dvxHub";
 
 panel.innerHTML=`
 
-<div class="title"> Danhvux Hub</div>
+<div class="title"> Danhvux Panel</div>
 
 <div class="row">
-🎬 Speed: <b id="speedTxt">x2</b>
+🏎️ Speed: <b id="speedTxt">x2</b>
 </div>
 
 <input id="speedRange" type="range" min="1" max="16" value="2">
