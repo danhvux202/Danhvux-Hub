@@ -27,25 +27,25 @@ el.dispatchEvent(new Event(type,{bubbles:true}));
 // SPEED LOCK
 //////////////////////////////////////////////////
 
-const lockSpeed=()=>{
+(function(){
 
-const descriptor=
+const descriptor =
 Object.getOwnPropertyDescriptor(
 HTMLMediaElement.prototype,'playbackRate'
 );
+
+if(!descriptor) return;
 
 Object.defineProperty(
 HTMLMediaElement.prototype,
 'playbackRate',
 {
-get(){return descriptor.get.call(this);},
-set(){descriptor.set.call(this,currentSpeed);}
+get(){ return descriptor.get.call(this); },
+set(){ descriptor.set.call(this,currentSpeed); }
 }
 );
 
-};
-
-lockSpeed();
+})();
 
 //////////////////////////////////////////////////
 // WELCOME TICKER
@@ -73,14 +73,15 @@ style="
 white-space:nowrap;
 position:relative;
 font-weight:bold;
-color:#a6e3a1;
-">
+color:#a6e3a1;">
 👋 CHÀO MỪNG BẠN ĐẾN VỚI DANHVUX PANEL
 </div>
 </div>
 `;
 
 const text=document.getElementById("welcomeText");
+
+if(!text) return;
 
 const boxWidth=box.offsetWidth;
 const textWidth=text.scrollWidth;
@@ -100,10 +101,8 @@ requestAnimationFrame(move);
 }else{
 
 setTimeout(()=>{
-
 box.innerHTML=oldContent;
 tickerRunning=false;
-
 },500);
 
 }
@@ -135,8 +134,7 @@ border-radius:12px;
 border:2px solid #f5e0dc;
 width:280px;
 font-family:sans-serif;
-box-shadow:0 10px 40px rgba(0,0,0,0.8);
-">
+box-shadow:0 10px 40px rgba(0,0,0,0.8);">
 
 <h4 style="
 margin:0;
@@ -167,9 +165,7 @@ value="2"
 style="
 width:100%;
 cursor:pointer;
-accent-color:#f5e0dc;
-">
-
+accent-color:#f5e0dc;">
 </div>
 
 <div id="jumpBox" style="
@@ -185,7 +181,6 @@ overflow-y:auto;">
 </div>
 
 <div style="margin-top:10px;">
-
 <button id="btnForceLogin"
 style="
 width:100%;
@@ -198,7 +193,6 @@ font-weight:bold;
 cursor:pointer;">
 🚀 AUTO LOGIN
 </button>
-
 </div>
 
 <div style="
@@ -220,23 +214,31 @@ setTimeout(welcomeTicker,600);
 // SPEED CONTROL
 //////////////////////////////////////////////////
 
-document.getElementById("spdRange").oninput=(e)=>{
+const range=document.getElementById("spdRange");
+
+if(range){
+range.oninput=(e)=>{
 
 currentSpeed=parseFloat(e.target.value);
 
-document.getElementById("spdTxt")
-.innerText="x"+currentSpeed;
+const txt=document.getElementById("spdTxt");
+if(txt) txt.innerText="x"+currentSpeed;
 
 const v=document.querySelector("video");
 if(v) v.playbackRate=currentSpeed;
 
 };
+}
 
 //////////////////////////////////////////////////
 // AUTO LOGIN
 //////////////////////////////////////////////////
 
-document.getElementById("btnForceLogin").onclick=()=>{
+const loginBtn=document.getElementById("btnForceLogin");
+
+if(loginBtn){
+
+loginBtn.onclick=()=>{
 
 const inputs=document.querySelectorAll("input");
 
@@ -263,11 +265,7 @@ setTimeout(()=>{
 deepFill(pInp,accounts[0].p);
 
 setTimeout(()=>{
-
-document
-.querySelector("button[type=submit]")
-?.click();
-
+document.querySelector("button[type=submit]")?.click();
 },400);
 
 },400);
@@ -279,6 +277,8 @@ alert("Không tìm thấy form login");
 }
 
 };
+
+}
 
 };
 
@@ -395,23 +395,25 @@ jBox.innerHTML="🎉 Đã xong 100%!";
 // START SYSTEM
 //////////////////////////////////////////////////
 
-if(document.readyState==="loading"){
-document.addEventListener(
-"DOMContentLoaded",
-createHub
-);
-}else{
+function start(){
+
 createHub();
+
+setInterval(mainLoop,1000);
+
+}
+
+if(document.readyState==="loading"){
+document.addEventListener("DOMContentLoaded",start);
+}else{
+start();
 }
 
 window.addEventListener("keydown",(e)=>{
 
 if(e.key.toLowerCase()==="h"){
 
-const p=
-document.getElementById(
-"danhvux-ultimate"
-);
+const p=document.getElementById("danhvux-ultimate");
 
 if(p)
 p.style.display=
@@ -421,7 +423,5 @@ p.style.display==="none"
 }
 
 });
-
-setInterval(mainLoop,1000);
 
 })();
