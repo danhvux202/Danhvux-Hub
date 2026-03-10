@@ -4,9 +4,14 @@
 
 let speed=2;
 
-//////////////////////////
-// PANEL UI
-//////////////////////////
+const account={
+user:"NHAP_TAI_KHOAN",
+pass:"NHAP_MAT_KHAU"
+};
+
+//////////////////////////////////////////////////
+// PANEL
+//////////////////////////////////////////////////
 
 function createPanel(){
 
@@ -17,7 +22,7 @@ panel.id="dvxHub";
 
 panel.innerHTML=`
 
-<div class="dvxHeader">Danhvux Hub</div>
+<div class="dvxTitle">Danhvux Hub</div>
 
 <div class="dvxRow">
 Tốc độ video: <b id="dvxSpeedTxt">x2</b>
@@ -25,39 +30,36 @@ Tốc độ video: <b id="dvxSpeedTxt">x2</b>
 
 <input id="dvxSpeed" type="range" min="1" max="16" value="2">
 
-<div id="dvxStatus">Đang quét bài học...</div>
+<div id="dvxStatus">Đang quét bài...</div>
 
-<div class="dvxBtns">
-<button id="dvxScan">Quét bài</button>
-<button id="dvxAuto">Tự động vào bài</button>
 <button id="dvxLogin">Auto Login</button>
-</div>
 
 <style>
 
 #dvxHub{
 position:fixed;
-top:30px;
-right:30px;
-width:320px;
+top:25px;
+right:25px;
+width:280px;
 background:linear-gradient(145deg,#0f172a,#020617);
-border-radius:18px;
-padding:18px;
-z-index:999999;
 color:white;
+border-radius:16px;
+padding:16px;
+z-index:999999;
 font-family:sans-serif;
-box-shadow:0 10px 30px rgba(0,0,0,.6);
+box-shadow:0 10px 35px rgba(0,0,0,.6);
 }
 
-.dvxHeader{
-font-size:22px;
+.dvxTitle{
+font-size:20px;
 font-weight:bold;
 text-align:center;
 margin-bottom:10px;
 }
 
 .dvxRow{
-margin-bottom:8px;
+font-size:14px;
+margin-bottom:6px;
 }
 
 #dvxSpeed{
@@ -67,26 +69,22 @@ margin-bottom:10px;
 
 #dvxStatus{
 background:#111827;
-padding:8px;
+padding:10px;
 border-radius:8px;
-margin-bottom:10px;
 font-size:13px;
+margin-bottom:10px;
+cursor:pointer;
 }
 
-.dvxBtns{
-display:flex;
-flex-direction:column;
-gap:6px;
-}
-
-.dvxBtns button{
+button{
 padding:8px;
 border:none;
-border-radius:10px;
+border-radius:8px;
 background:#22c55e;
 color:white;
 cursor:pointer;
 font-weight:bold;
+width:100%;
 }
 
 </style>
@@ -94,51 +92,57 @@ font-weight:bold;
 
 document.body.appendChild(panel);
 
-//////////////////////////
+//////////////////////////////////////////////////
 // SPEED
-//////////////////////////
+//////////////////////////////////////////////////
 
 document.getElementById("dvxSpeed").oninput=e=>{
 
-speed=e.target.value;
+speed=parseInt(e.target.value);
+
 document.getElementById("dvxSpeedTxt").innerText="x"+speed;
 
-const video=document.querySelector("video");
-if(video) video.playbackRate=speed;
+const v=document.querySelector("video");
+if(v) v.playbackRate=speed;
 
 };
 
-//////////////////////////
-// BUTTONS
-//////////////////////////
-
-document.getElementById("dvxScan").onclick=scanLessons;
-document.getElementById("dvxAuto").onclick=openUnfinished;
 document.getElementById("dvxLogin").onclick=autoLogin;
 
 }
 
-//////////////////////////
+//////////////////////////////////////////////////
 // SCAN LESSON
-//////////////////////////
+//////////////////////////////////////////////////
 
 function scanLessons(){
 
 const status=document.getElementById("dvxStatus");
 
-status.innerText="Đang quét bài...";
+if(!status) return;
 
-const lessons=[...document.querySelectorAll(".courseware-item,.lesson-item")];
+const lessons=[...document.querySelectorAll("a")];
 
 let list=[];
 
 lessons.forEach(el=>{
 
-const text=el.innerText;
+const txt=(el.innerText||"").trim();
 
-if(!text.includes("100%")){
+if(!txt.includes("%")) return;
 
-list.push(el);
+const m=txt.match(/(\d+)%/);
+
+if(!m) return;
+
+const percent=parseInt(m[1]);
+
+if(percent<100){
+
+list.push({
+title:txt,
+el:el
+});
 
 }
 
@@ -146,44 +150,62 @@ list.push(el);
 
 window.dvxLessons=list;
 
-status.innerText="Tìm thấy "+list.length+" bài chưa học";
+if(list.length===0){
 
-}
+status.innerText="🎉 Đã hoàn thành 100%";
 
-//////////////////////////
-// AUTO OPEN
-//////////////////////////
+}else{
 
-function openUnfinished(){
+status.innerText="⚡ "+list[0].title;
 
-if(!window.dvxLessons || !window.dvxLessons.length){
+status.onclick=()=>{
 
-scanLessons();
+list[0].el.click();
 
-}
-
-if(window.dvxLessons[0]){
-
-window.dvxLessons[0].click();
+};
 
 }
 
 }
 
-//////////////////////////
+//////////////////////////////////////////////////
+// VIDEO LOOP
+//////////////////////////////////////////////////
+
+function videoLoop(){
+
+const v=document.querySelector("video");
+
+if(!v) return;
+
+v.playbackRate=speed;
+
+if(v.ended){
+
+const next=document.querySelector(".btn-next,.next-item");
+
+if(next) next.click();
+
+}
+
+}
+
+setInterval(videoLoop,1500);
+
+//////////////////////////////////////////////////
 // AUTO LOGIN
-//////////////////////////
+//////////////////////////////////////////////////
 
 function autoLogin(){
 
-const user=document.querySelector("input[type=text]");
+const user=document.querySelector("input[type=text],input[type=email]");
 const pass=document.querySelector("input[type=password]");
-const btn=document.querySelector("button");
+const btn=document.querySelector("button[type=submit]");
 
 if(user && pass){
 
-user.value=localStorage.dvxUser||"";
-pass.value=localStorage.dvxPass||"";
+user.value=account.user;
+pass.value=account.pass;
 
 if(btn) btn.click();
 
@@ -191,27 +213,33 @@ if(btn) btn.click();
 
 }
 
-//////////////////////////
-// VIDEO SPEED LOOP
-//////////////////////////
+//////////////////////////////////////////////////
+// PANEL KHÔNG BAO GIỜ MẤT
+//////////////////////////////////////////////////
 
 setInterval(()=>{
 
-const video=document.querySelector("video");
+if(!document.getElementById("dvxHub")){
 
-if(video){
-
-video.playbackRate=speed;
+createPanel();
 
 }
 
-},1000);
+},2000);
 
-//////////////////////////
+//////////////////////////////////////////////////
+// START
+//////////////////////////////////////////////////
 
 window.addEventListener("load",()=>{
 
-setTimeout(createPanel,1500);
+setTimeout(()=>{
+
+createPanel();
+scanLessons();
+setInterval(scanLessons,4000);
+
+},2000);
 
 });
 
