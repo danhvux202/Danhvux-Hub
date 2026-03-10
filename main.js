@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-let currentSpeed = 20.0;
+let currentSpeed = 2.0;
 let welcomePlayed = false;
 let tickerRunning = false;
 
@@ -24,7 +24,7 @@ el.dispatchEvent(new Event(type,{bubbles:true}));
 };
 
 //////////////////////////////////////////////////
-// SPEED LOCK
+// SPEED LOCK (MAX x20)
 //////////////////////////////////////////////////
 
 (function(){
@@ -41,7 +41,13 @@ HTMLMediaElement.prototype,
 'playbackRate',
 {
 get(){ return descriptor.get.call(this); },
-set(){ descriptor.set.call(this,currentSpeed); }
+set(v){
+
+if(v>20) v=20;
+
+descriptor.set.call(this,v);
+
+}
 }
 );
 
@@ -80,8 +86,6 @@ color:#a6e3a1;">
 `;
 
 const text=document.getElementById("welcomeText");
-
-if(!text) return;
 
 const boxWidth=box.offsetWidth;
 const textWidth=text.scrollWidth;
@@ -153,15 +157,15 @@ display:flex;
 justify-content:space-between;
 margin-bottom:5px;">
 <span>Tốc độ: <b id="spdTxt"
-style="color:#a6e3a1;">x20</b></span>
+style="color:#a6e3a1;">x2</b></span>
 </div>
 
 <input type="range"
 id="spdRange"
 min="1"
-max="100"
+max="20"
 step="1"
-value="20"
+value="2"
 style="
 width:100%;
 cursor:pointer;
@@ -220,6 +224,8 @@ if(range){
 range.oninput=(e)=>{
 
 currentSpeed=parseFloat(e.target.value);
+
+if(currentSpeed>20) currentSpeed=20;
 
 const txt=document.getElementById("spdTxt");
 if(txt) txt.innerText="x"+currentSpeed;
@@ -295,6 +301,8 @@ const v=document.querySelector("video");
 if(v){
 
 v.muted=true;
+
+if(currentSpeed>20) currentSpeed=20;
 
 if(v.playbackRate!==currentSpeed)
 v.playbackRate=currentSpeed;
