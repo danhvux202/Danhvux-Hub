@@ -5,8 +5,8 @@
 // @description  Sửa lỗi Auto Login
 // @author       Danhvux
 // @match        https://*.k12online.vn/*
-// @run-at       document-start
 // @grant        none
+// @run-at       document-end
 // ==/UserScript==
 
 (function() {
