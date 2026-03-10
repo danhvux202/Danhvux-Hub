@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-let currentSpeed = 2.0;
+let currentSpeed = 20.0;
 let welcomePlayed = false;
 let tickerRunning = false;
 
@@ -142,7 +142,7 @@ color:#f5e0dc;
 text-align:center;
 border-bottom:1px solid #45475a;
 padding-bottom:5px;">
-TEST PANEL
+Danhvux Panel
 </h4>
 
 <div style="margin-top:10px;">
@@ -153,7 +153,7 @@ display:flex;
 justify-content:space-between;
 margin-bottom:5px;">
 <span>Tốc độ: <b id="spdTxt"
-style="color:#a6e3a1;">x2</b></span>
+style="color:#a6e3a1;">x20</b></span>
 </div>
 
 <input type="range"
@@ -161,7 +161,7 @@ id="spdRange"
 min="1"
 max="100"
 step="1"
-value="2"
+value="20"
 style="
 width:100%;
 cursor:pointer;
@@ -398,7 +398,6 @@ jBox.innerHTML="🎉 Đã xong 100%!";
 function start(){
 
 createHub();
-
 setInterval(mainLoop,1000);
 
 }
