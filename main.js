@@ -1,9 +1,9 @@
-(function(){
+(function () {
 'use strict';
 
-let currentSpeed=2;
+let currentSpeed = 2;
 
-const accounts=[
+const accounts = [
 {u:"NHAP_TEN_VAO_DAY",p:"NHAP_MAT_KHAU_VAO_DAY"}
 ];
 
@@ -12,6 +12,8 @@ const accounts=[
 //////////////////////////////////////////////////
 
 function deepFill(el,value){
+
+if(!el) return;
 
 el.focus();
 el.value=value;
@@ -31,7 +33,7 @@ let user,password;
 
 inputs.forEach(i=>{
 
-const t=i.type?.toLowerCase();
+const t=(i.type||"").toLowerCase();
 
 if(t==="password") password=i;
 
@@ -41,7 +43,7 @@ if(!user) user=i;
 
 });
 
-if(user&&password){
+if(user && password){
 
 deepFill(user,accounts[0].u);
 
@@ -50,9 +52,7 @@ setTimeout(()=>{
 deepFill(password,accounts[0].p);
 
 setTimeout(()=>{
-
 document.querySelector("button[type=submit]")?.click();
-
 },400);
 
 },400);
@@ -66,6 +66,8 @@ document.querySelector("button[type=submit]")?.click();
 //////////////////////////////////////////////////
 
 function createHub(){
+
+if(!document.body) return;
 
 if(document.getElementById("danhvuxHub")) return;
 
@@ -91,10 +93,8 @@ Danhvux Hub
 </h3>
 
 <div style="display:flex;margin-top:8px;gap:4px">
-
 <button id="tabHub" style="flex:1">HUB</button>
 <button id="tabSubjects" style="flex:1">MÔN</button>
-
 </div>
 
 <div id="hubTab" style="margin-top:8px">
@@ -159,19 +159,14 @@ document.body.insertAdjacentHTML("beforeend",html);
 //////////////////////////////////////////////////
 
 document.getElementById("tabHub").onclick=()=>{
-
 document.getElementById("hubTab").style.display="block";
 document.getElementById("subjectTab").style.display="none";
-
 };
 
 document.getElementById("tabSubjects").onclick=()=>{
-
 document.getElementById("hubTab").style.display="none";
 document.getElementById("subjectTab").style.display="block";
-
 scanSubjects();
-
 };
 
 //////////////////////////////////////////////////
@@ -180,7 +175,7 @@ scanSubjects();
 
 document.getElementById("spdRange").oninput=e=>{
 
-currentSpeed=parseInt(e.target.value);
+currentSpeed=parseInt(e.target.value)||1;
 
 document.getElementById("spdTxt").innerText="x"+currentSpeed;
 
@@ -195,7 +190,7 @@ document.getElementById("btnLogin").onclick=autoLogin;
 }
 
 //////////////////////////////////////////////////
-// SCAN LESSONS <100%
+// SCAN LESSONS
 //////////////////////////////////////////////////
 
 function scanLessons(){
@@ -205,8 +200,7 @@ if(!box) return;
 
 let lessons=[];
 
-document
-.querySelectorAll("a,div,span,tr,li")
+document.querySelectorAll("a,div,span,tr,li")
 .forEach(el=>{
 
 const txt=(el.innerText||"").trim();
@@ -232,9 +226,7 @@ lessons.push({title,percent,link,el});
 
 });
 
-const unique=[
-...new Map(lessons.map(x=>[x.title,x])).values()
-];
+const unique=[...new Map(lessons.map(x=>[x.title,x])).values()];
 
 box.innerHTML="";
 
@@ -288,18 +280,14 @@ if(!box) return;
 
 let subjects=[];
 
-document
-.querySelectorAll("a,div,span,li")
+document.querySelectorAll("a,div,span,li")
 .forEach(el=>{
 
 const txt=(el.innerText||"").trim();
 
 if(!txt) return;
 
-if(
-txt.includes("GV") ||
-txt.includes("Giáo viên")
-){
+if(txt.includes("GV") || txt.includes("Giáo viên")){
 subjects.push(txt);
 }
 
@@ -310,10 +298,8 @@ const unique=[...new Set(subjects)];
 box.innerHTML="";
 
 if(unique.length===0){
-
 box.innerHTML="Không phát hiện môn học";
 return;
-
 }
 
 unique.forEach(s=>{
@@ -343,16 +329,15 @@ function videoLoop(){
 
 const v=document.querySelector("video");
 
-if(v){
+if(!v) return;
 
 v.muted=true;
 
 if(v.playbackRate!==currentSpeed)
 v.playbackRate=currentSpeed;
 
-if(v.ended)
+if(v.ended){
 document.querySelector(".btn-next,.next-lesson,.next-item")?.click();
-
 }
 
 }
@@ -370,7 +355,6 @@ setTimeout(()=>{
 scanLessons();
 
 setInterval(scanLessons,4000);
-
 setInterval(videoLoop,1000);
 
 },2000);
@@ -379,11 +363,21 @@ setTimeout(autoLogin,2500);
 
 }
 
+//////////////////////////////////////////////////
+// INIT
+//////////////////////////////////////////////////
+
+function init(){
+
 if(document.readyState==="loading"){
 document.addEventListener("DOMContentLoaded",start);
 }else{
 start();
 }
+
+}
+
+init();
 
 //////////////////////////////////////////////////
 // HOTKEY
@@ -395,13 +389,13 @@ if(e.key.toLowerCase()==="h"){
 
 const p=document.getElementById("danhvuxHub");
 
-if(p)
+if(p){
 p.style.display=
 p.style.display==="none"?"block":"none";
+}
 
 }
 
 });
 
 })();
-```
