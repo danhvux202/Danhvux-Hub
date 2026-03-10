@@ -107,6 +107,8 @@ btn?.click();
 // WELCOME TICKER
 //////////////////////////////////////////////////
 
+let tickerRunning=false;
+
 function welcomeTicker(){
 
 if(welcomePlayed) return;
@@ -115,6 +117,7 @@ const box=document.getElementById("jumpBox");
 if(!box) return;
 
 welcomePlayed=true;
+tickerRunning=true;
 
 const old=box.innerHTML;
 
@@ -124,8 +127,7 @@ box.innerHTML=`
 style="
 white-space:nowrap;
 font-weight:bold;
-color:#a6e3a1;
-">
+color:#a6e3a1;">
 👋 CHÀO MỪNG BẠN ĐẾN VỚI DANHVUX HUB
 </div>
 </div>
@@ -148,8 +150,11 @@ requestAnimationFrame(move);
 }else{
 
 setTimeout(()=>{
+
 box.innerHTML=old;
-},500);
+tickerRunning=false;
+
+},400);
 
 }
 
