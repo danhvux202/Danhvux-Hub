@@ -17,15 +17,15 @@ panel.id="dvxHub";
 
 panel.innerHTML=`
 
-<div class="dvxTitle">🚀 Danhvux Hub</div>
+<div class="title">🚀 Danhvux Hub</div>
 
-<div class="dvxRow">
-🎬 Speed: <b id="dvxSpeedTxt">x2</b>
+<div class="row">
+🎬 Speed: <b id="speedTxt">x2</b>
 </div>
 
-<input id="dvxSpeed" type="range" min="1" max="16" value="2">
+<input id="speedRange" type="range" min="1" max="16" value="2">
 
-<div id="dvxStatus">🔍 Đang quét bài...</div>
+<div id="status">🔍 Đang quét bài...</div>
 
 <style>
 
@@ -34,31 +34,35 @@ position:fixed;
 top:25px;
 right:25px;
 width:260px;
-background:rgba(15,23,42,.85);
-backdrop-filter:blur(12px);
-border-radius:16px;
+background:rgba(15,23,42,.9);
+backdrop-filter:blur(10px);
 padding:15px;
+border-radius:16px;
 color:white;
-font-family:sans-serif;
 z-index:999999;
-box-shadow:0 10px 35px rgba(0,0,0,.6);
+font-family:sans-serif;
+box-shadow:0 10px 30px rgba(0,0,0,.5);
 }
 
-.dvxTitle{
+.title{
 font-size:18px;
 font-weight:bold;
 text-align:center;
 margin-bottom:10px;
 }
 
-#dvxSpeed{
+.row{
+margin-bottom:6px;
+}
+
+#speedRange{
 width:100%;
 margin-bottom:10px;
 }
 
-#dvxStatus{
+#status{
 background:#111827;
-padding:10px;
+padding:8px;
 border-radius:8px;
 font-size:13px;
 cursor:pointer;
@@ -69,12 +73,14 @@ cursor:pointer;
 
 document.body.appendChild(panel);
 
-document.getElementById("dvxSpeed").oninput=e=>{
+document.getElementById("speedRange").oninput=e=>{
 
 speed=e.target.value;
-document.getElementById("dvxSpeedTxt").innerText="x"+speed;
+
+document.getElementById("speedTxt").innerText="x"+speed;
 
 const v=document.querySelector("video");
+
 if(v) v.playbackRate=speed;
 
 };
@@ -87,13 +93,12 @@ if(v) v.playbackRate=speed;
 
 function scanLessons(){
 
-const status=document.getElementById("dvxStatus");
-
+const status=document.getElementById("status");
 if(!status) return;
 
 let lessons=[];
 
-document.querySelectorAll("a,div,li").forEach(el=>{
+document.querySelectorAll("*").forEach(el=>{
 
 const txt=(el.innerText||"").trim();
 
@@ -125,12 +130,11 @@ const unique=[...new Map(lessons.map(x=>[x.title,x])).values()];
 
 if(unique.length===0){
 
-status.innerText="🎉 Đã hoàn thành tất cả!";
+status.innerText="🎉 Tất cả đã hoàn thành";
 
 }else{
 
-status.innerText=`⚡ ${unique[0].title} (${unique.length} bài)`;
-
+status.innerText=`📚 ${unique[0].title}`;
 
 status.onclick=()=>{
 
@@ -143,7 +147,7 @@ window.location.href=unique[0].link;
 }
 
 //////////////////////////////////////////////////
-// VIDEO SPEED
+// VIDEO CONTROL
 //////////////////////////////////////////////////
 
 setInterval(()=>{
@@ -170,35 +174,35 @@ document.querySelector(".btn-next,.next-item,.next-lesson")?.click();
 
 function createMusicDisc(){
 
-if(document.getElementById("dvxMusic")) return;
+if(document.getElementById("musicBox")) return;
 
 const box=document.createElement("div");
-box.id="dvxMusic";
+box.id="musicBox";
 
 box.innerHTML=`
 
-<div id="dvxDisc"></div>
+<div id="disc"></div>
 
-<div id="dvxPlayer">
+<div id="musicBanner">🎵 Chưa phát nhạc</div>
 
-<input id="dvxMusicUrl" placeholder="🎵 YouTube / Spotify link">
+<div id="player">
 
-<div class="dvxControls">
+<input id="musicUrl" placeholder="🎧 YouTube / Spotify link">
 
-<button id="dvxPlay">▶</button>
-<button id="dvxPause">⏸</button>
+<div class="controls">
+
+<button id="playBtn">▶</button>
+<button id="stopBtn">⏹</button>
 
 </div>
 
-<input id="dvxVol" type="range" min="0" max="1" step="0.01" value="1">
-
-<iframe id="dvxFrame"></iframe>
+<iframe id="frame"></iframe>
 
 </div>
 
 <style>
 
-#dvxMusic{
+#musicBox{
 position:fixed;
 bottom:25px;
 right:25px;
@@ -206,59 +210,68 @@ z-index:999999;
 display:flex;
 flex-direction:column;
 align-items:center;
+font-family:sans-serif;
 }
 
-#dvxDisc{
+#disc{
 width:80px;
 height:80px;
 border-radius:50%;
 background:
-radial-gradient(circle,#444 25%,#000 26%,#111 40%,#000 41%);
-box-shadow:0 0 10px #000;
+radial-gradient(circle,#444 20%,#000 21%,#111 40%,#000 41%);
 cursor:pointer;
 animation:spin 4s linear infinite;
 animation-play-state:paused;
 }
 
 @keyframes spin{
-from{transform:rotate(0deg)}
+from{transform:rotate(0)}
 to{transform:rotate(360deg)}
 }
 
-#dvxPlayer{
-margin-top:10px;
-width:260px;
-background:rgba(0,0,0,.85);
-padding:10px;
-border-radius:12px;
-display:none;
-}
-
-#dvxPlayer input{
-width:100%;
-margin-bottom:6px;
-border:none;
-padding:6px;
+#musicBanner{
+margin-top:6px;
+background:rgba(0,0,0,.7);
+color:white;
+font-size:12px;
+padding:4px 8px;
 border-radius:6px;
 }
 
-.dvxControls{
+#player{
+display:none;
+margin-top:8px;
+width:260px;
+background:rgba(0,0,0,.9);
+padding:10px;
+border-radius:12px;
+}
+
+#player input{
+width:100%;
+padding:6px;
+border:none;
+border-radius:6px;
+margin-bottom:6px;
+}
+
+.controls{
 display:flex;
 gap:6px;
 margin-bottom:6px;
 }
 
-.dvxControls button{
+.controls button{
 flex:1;
-border:none;
 padding:6px;
+border:none;
 border-radius:6px;
-cursor:pointer;
 background:#22c55e;
 color:white;
+cursor:pointer;
 }
 
-#dvxFrame{
+#frame{
 width:100%;
 height:120px;
 border:none;
@@ -270,10 +283,11 @@ border-radius:6px;
 
 document.body.appendChild(box);
 
-const disc=document.getElementById("dvxDisc");
-const player=document.getElementById("dvxPlayer");
-const urlInput=document.getElementById("dvxMusicUrl");
-const frame=document.getElementById("dvxFrame");
+const disc=document.getElementById("disc");
+const player=document.getElementById("player");
+const frame=document.getElementById("frame");
+const banner=document.getElementById("musicBanner");
+const input=document.getElementById("musicUrl");
 
 disc.onclick=()=>{
 
@@ -282,53 +296,44 @@ player.style.display==="none"?"block":"none";
 
 };
 
-//////////////////////////////////////////////////
-// LOAD SAVED MUSIC
-//////////////////////////////////////////////////
+document.getElementById("playBtn").onclick=()=>{
 
-const saved=localStorage.getItem("dvxMusic");
-
-if(saved){
-
-urlInput.value=saved;
-frame.src=convertMusic(saved);
-disc.style.animationPlayState="running";
-
-}
-
-//////////////////////////////////////////////////
-// PLAY
-//////////////////////////////////////////////////
-
-document.getElementById("dvxPlay").onclick=()=>{
-
-const url=urlInput.value.trim();
-
+const url=input.value.trim();
 if(!url) return;
-
-localStorage.setItem("dvxMusic",url);
 
 frame.src=convertMusic(url);
 
 disc.style.animationPlayState="running";
 
+banner.innerText="🎶 Đang phát nhạc";
+
+localStorage.setItem("dvxMusic",url);
+
 };
 
-//////////////////////////////////////////////////
-// PAUSE
-//////////////////////////////////////////////////
-
-document.getElementById("dvxPause").onclick=()=>{
+document.getElementById("stopBtn").onclick=()=>{
 
 frame.src="";
 disc.style.animationPlayState="paused";
+banner.innerText="⏹ Đã dừng";
 
 };
+
+const saved=localStorage.getItem("dvxMusic");
+
+if(saved){
+
+input.value=saved;
+frame.src=convertMusic(saved);
+disc.style.animationPlayState="running";
+banner.innerText="🎶 Đang phát nhạc";
+
+}
 
 }
 
 //////////////////////////////////////////////////
-// CONVERT MUSIC LINK
+// MUSIC LINK
 //////////////////////////////////////////////////
 
 function convertMusic(url){
@@ -360,9 +365,7 @@ return url;
 // START
 //////////////////////////////////////////////////
 
-window.addEventListener("load",()=>{
-
-setTimeout(()=>{
+function startHub(){
 
 createHub();
 createMusicDisc();
@@ -370,7 +373,11 @@ scanLessons();
 
 setInterval(scanLessons,5000);
 
-},2000);
+}
+
+window.addEventListener("load",()=>{
+
+setTimeout(startHub,2000);
 
 });
 
@@ -381,7 +388,7 @@ setInterval(scanLessons,5000);
 setInterval(()=>{
 
 if(!document.getElementById("dvxHub")) createHub();
-if(!document.getElementById("dvxMusic")) createMusicDisc();
+if(!document.getElementById("musicBox")) createMusicDisc();
 
 },3000);
 
