@@ -8,109 +8,226 @@ let speed = 2;
 // PANEL
 //////////////////////////////////////////////////
 
-function createHub(){
+panel.innerHTML = `
+<div class="dvx-card">
 
-if(document.getElementById("dvxHub")) return;
-
-const panel=document.createElement("div");
-panel.id="dvxHub";
-
-panel.innerHTML=`
-
-<div id="dvxHeader">Danhvux Hub</div>
-
-<div class="dvxRow">
-Tốc độ: <b id="dvxSpeedTxt">x2</b>
+<div class="dvx-title">
+⚡ Danhvux Hub
 </div>
 
-<input id="dvxSpeed" type="range" min="1" max="16" value="2">
+<div class="dvx-section">
+<div class="dvx-label">Tốc độ video</div>
 
-<div id="dvxStatus">Đang quét bài học...</div>
+<div class="dvx-speed">
+<input id="dvxSpeed" type="range" min="1" max="16" value="2">
+<span id="dvxSpeedTxt">x2</span>
+</div>
+</div>
+
+<div class="dvx-section">
+
+<div class="dvx-status" id="dvxStatus">
+<div class="dvx-loader"></div>
+<span>Đang quét bài học...</span>
+</div>
 
 <div id="dvxLessons"></div>
 
-<div class="dvxBtns">
-<button id="dvxScan">Quét lại</button>
-<button id="dvxLogin">Auto Login</button>
+</div>
+
+<div class="dvx-buttons">
+
+<button id="dvxScan">🔍 Quét lại</button>
+
+<button id="dvxLogin">🔐 Auto Login</button>
+
+</div>
+
 </div>
 
 <style>
 
 #dvxHub{
 position:fixed;
-top:20px;
-right:20px;
-width:300px;
-padding:16px;
-border-radius:16px;
-background:linear-gradient(180deg,#0b0d20,#0d1130);
-color:white;
-font-family:sans-serif;
+top:30px;
+right:30px;
 z-index:999999;
-border:2px solid #ff4fa3;
-box-shadow:0 0 25px rgba(255,80,150,.6);
-backdrop-filter:blur(10px);
 }
 
-#dvxHeader{
-text-align:center;
+.dvx-card{
+
+width:320px;
+padding:20px;
+
+border-radius:18px;
+
+background:rgba(15,18,45,0.85);
+
+backdrop-filter:blur(12px);
+
+border:1px solid rgba(255,255,255,0.1);
+
+box-shadow:
+0 0 40px rgba(255,0,120,0.35),
+0 0 10px rgba(255,0,120,0.2);
+
+font-family:Segoe UI;
+color:white;
+
+animation:dvxPop .4s ease;
+
+}
+
+@keyframes dvxPop{
+from{transform:scale(.9);opacity:0}
+to{transform:scale(1);opacity:1}
+}
+
+.dvx-title{
+
 font-size:22px;
 font-weight:700;
-margin-bottom:10px;
+
+text-align:center;
+
+margin-bottom:16px;
+
+background:linear-gradient(90deg,#ff4fa3,#6ea8ff);
+-webkit-background-clip:text;
+color:transparent;
+
 }
 
-#dvxSpeed{
-width:100%;
-margin:6px 0 8px;
+.dvx-section{
+margin-bottom:14px;
 }
 
-#dvxStatus{
-background:#151938;
-padding:8px;
-border-radius:8px;
-font-size:12px;
+.dvx-label{
+font-size:13px;
+opacity:.8;
 margin-bottom:6px;
 }
 
+.dvx-speed{
+display:flex;
+align-items:center;
+gap:8px;
+}
+
+.dvx-speed input{
+flex:1;
+}
+
+.dvx-status{
+
+display:flex;
+align-items:center;
+gap:8px;
+
+background:#11153a;
+
+padding:8px;
+
+border-radius:8px;
+
+font-size:13px;
+
+}
+
+.dvx-loader{
+
+width:14px;
+height:14px;
+
+border:2px solid #444;
+border-top:2px solid #ff4fa3;
+
+border-radius:50%;
+
+animation:spin .8s linear infinite;
+
+}
+
+@keyframes spin{
+to{transform:rotate(360deg)}
+}
+
 #dvxLessons{
+
 max-height:160px;
+
 overflow:auto;
+
+margin-top:8px;
+
 }
 
 .dvxLesson{
-background:#1f244f;
+
 padding:6px;
+
+background:#1b2055;
+
 border-radius:6px;
+
 margin-bottom:4px;
+
 cursor:pointer;
+
+transition:.2s;
+
 }
 
 .dvxLesson:hover{
-background:#2f3680;
+background:#2e36a3;
 }
 
-.dvxBtns{
+.dvx-buttons{
+
 display:flex;
-gap:6px;
-margin-top:8px;
+gap:8px;
+margin-top:10px;
+
 }
 
-.dvxBtns button{
+.dvx-buttons button{
+
 flex:1;
-padding:8px;
+
 border:none;
-border-radius:8px;
-cursor:pointer;
+
+border-radius:10px;
+
+padding:9px;
+
 font-weight:600;
+
+cursor:pointer;
+
+transition:.2s;
+
 }
 
-#dvxScan{background:#4da3ff;color:white;}
-#dvxLogin{background:#8fd19e;color:white;}
+#dvxScan{
+
+background:linear-gradient(90deg,#4da3ff,#6ea8ff);
+color:white;
+
+}
+
+#dvxLogin{
+
+background:linear-gradient(90deg,#ff5d7a,#ff7aa2);
+color:white;
+
+}
+
+button:hover{
+transform:scale(1.05);
+}
 
 </style>
 `;
-
-document.body.appendChild(panel);
 
 //////////////////////////////////////////////////
 // DRAG PANEL
