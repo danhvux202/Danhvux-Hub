@@ -1,21 +1,21 @@
 (function(){
 'use strict';
 
-let currentSpeed = 2;
+let tocDoVideo = 2;
 
 //////////////////////////////////////////////////
-// ACCOUNT
+// TÀI KHOẢN
 //////////////////////////////////////////////////
 
-const accounts=[
+const taiKhoan=[
 {u:"USERNAME",p:"PASSWORD"}
 ];
 
 //////////////////////////////////////////////////
-// AUTO LOGIN
+// TỰ ĐỘNG ĐĂNG NHẬP
 //////////////////////////////////////////////////
 
-function fill(el,val){
+function dienInput(el,val){
 
 if(!el) return;
 
@@ -28,18 +28,18 @@ el.dispatchEvent(new Event(e,{bubbles:true}));
 
 }
 
-function autoLogin(){
+function tuDongDangNhap(){
 
 const user=document.querySelector("input[type=text],input[type=email]");
 const pass=document.querySelector("input[type=password]");
 
 if(user && pass){
 
-fill(user,accounts[0].u);
+dienInput(user,taiKhoan[0].u);
 
 setTimeout(()=>{
 
-fill(pass,accounts[0].p);
+dienInput(pass,taiKhoan[0].p);
 
 setTimeout(()=>{
 document.querySelector("button[type=submit]")?.click();
@@ -52,10 +52,10 @@ document.querySelector("button[type=submit]")?.click();
 }
 
 //////////////////////////////////////////////////
-// HUB UI
+// TẠO PANEL HUB
 //////////////////////////////////////////////////
 
-function createHub(){
+function taoHub(){
 
 if(document.getElementById("danhvuxHub")) return;
 
@@ -79,12 +79,12 @@ box-shadow:0 10px 40px rgba(0,0,0,.6);
 <h3 style="margin:0;text-align:center">Danhvux Hub</h3>
 
 <div style="font-size:12px;margin-top:8px">
-Speed: <b id="spdTxt">x2</b>
+Tốc độ video: <b id="txtTocDo">x2</b>
 </div>
 
-<input id="spdRange" type="range" min="1" max="20" value="2" style="width:100%">
+<input id="rangeTocDo" type="range" min="1" max="20" value="2" style="width:100%">
 
-<div id="jumpBox" style="
+<div id="hopBaiHoc" style="
 margin-top:10px;
 background:#181825;
 padding:8px;
@@ -92,7 +92,7 @@ border-radius:8px;
 font-size:11px;
 max-height:170px;
 overflow:auto">
-Scanning lessons...
+Đang quét bài học...
 </div>
 
 <button id="btnLogin" style="
@@ -104,7 +104,7 @@ border:none;
 border-radius:8px;
 font-weight:bold;
 cursor:pointer">
-AUTO LOGIN
+TỰ ĐỘNG ĐĂNG NHẬP
 </button>
 
 </div>
@@ -113,54 +113,54 @@ AUTO LOGIN
 document.body.insertAdjacentHTML("beforeend",html);
 
 //////////////////////////////////////////////////
-// SPEED CONTROL
+// ĐIỀU CHỈNH TỐC ĐỘ VIDEO
 //////////////////////////////////////////////////
 
-const spd=document.getElementById("spdRange");
+const spd=document.getElementById("rangeTocDo");
 
 spd.oninput=e=>{
 
-currentSpeed=parseInt(e.target.value);
+tocDoVideo=parseInt(e.target.value);
 
-document.getElementById("spdTxt").innerText="x"+currentSpeed;
+document.getElementById("txtTocDo").innerText="x"+tocDoVideo;
 
 const v=document.querySelector("video");
-if(v) v.playbackRate=currentSpeed;
+if(v) v.playbackRate=tocDoVideo;
 
 };
 
-document.getElementById("btnLogin").onclick=autoLogin;
+document.getElementById("btnLogin").onclick=tuDongDangNhap;
 
 }
 
 //////////////////////////////////////////////////
-// SCAN LESSONS (<100%)
+// QUÉT BÀI HỌC CHƯA 100%
 //////////////////////////////////////////////////
 
-function scanLessons(){
+function quetBaiHoc(){
 
-const box=document.getElementById("jumpBox");
+const box=document.getElementById("hopBaiHoc");
 if(!box) return;
 
 const nodes=document.querySelectorAll(".ant-tree-node-content-wrapper");
 
-let lessons=[];
+let danhSach=[];
 
 nodes.forEach(node=>{
 
-const title=node.innerText.trim();
+const text=node.innerText.trim();
 
-const m=title.match(/\((\d+)%\)/);
+const m=text.match(/\((\d+)%\)/);
 if(!m) return;
 
 const percent=parseInt(m[1]);
 
 if(percent>=100) return;
 
-const cleanTitle=title.replace(/\(\d+%\)/,"").trim();
+const ten=text.replace(/\(\d+%\)/,"").trim();
 
-lessons.push({
-title:cleanTitle,
+danhSach.push({
+title:ten,
 percent:percent,
 node:node
 });
@@ -169,14 +169,14 @@ node:node
 
 box.innerHTML="";
 
-if(lessons.length===0){
+if(danhSach.length===0){
 
-box.innerHTML="🎉 Tất cả bài đã hoàn thành";
+box.innerHTML="🎉 Tất cả bài học đã hoàn thành";
 return;
 
 }
 
-lessons.forEach(item=>{
+danhSach.forEach(item=>{
 
 const div=document.createElement("div");
 
@@ -202,10 +202,10 @@ box.appendChild(div);
 }
 
 //////////////////////////////////////////////////
-// VIDEO AUTO
+// TỰ ĐỘNG VIDEO
 //////////////////////////////////////////////////
 
-function videoLoop(){
+function tuDongVideo(){
 
 const v=document.querySelector("video");
 
@@ -213,8 +213,8 @@ if(!v) return;
 
 v.muted=true;
 
-if(v.playbackRate!==currentSpeed)
-v.playbackRate=currentSpeed;
+if(v.playbackRate!==tocDoVideo)
+v.playbackRate=tocDoVideo;
 
 if(v.ended){
 
@@ -227,35 +227,35 @@ document.querySelector(
 }
 
 //////////////////////////////////////////////////
-// START
+// KHỞI ĐỘNG
 //////////////////////////////////////////////////
 
-function start(){
+function batDau(){
 
-createHub();
+taoHub();
 
 setTimeout(()=>{
 
-scanLessons();
+quetBaiHoc();
 
-setInterval(scanLessons,5000);
+setInterval(quetBaiHoc,5000);
 
-setInterval(videoLoop,1000);
+setInterval(tuDongVideo,1000);
 
 },2000);
 
-setTimeout(autoLogin,3000);
+setTimeout(tuDongDangNhap,3000);
 
 }
 
 if(document.readyState==="loading"){
-document.addEventListener("DOMContentLoaded",start);
+document.addEventListener("DOMContentLoaded",batDau);
 }else{
-start();
+batDau();
 }
 
 //////////////////////////////////////////////////
-// HOTKEY
+// PHÍM TẮT ẨN HIỆN HUB
 //////////////////////////////////////////////////
 
 window.addEventListener("keydown",e=>{
