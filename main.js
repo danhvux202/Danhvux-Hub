@@ -1,3 +1,4 @@
+```javascript
 // ==UserScript==
 // @name         Danhvux Hub Full
 // @match        https://*.k12online.vn/*
@@ -19,7 +20,7 @@ const accounts=[
 ];
 
 //////////////////////////////////////////////////
-// AUTO LOGIN
+// LOGIN
 //////////////////////////////////////////////////
 
 function deepFill(el,value){
@@ -123,7 +124,7 @@ border:1px solid #313244;
 max-height:120px;
 overflow-y:auto;
 ">
-Đang quét bài...
+Đang khởi động hub...
 </div>
 
 <button id="btnLogin" style="
@@ -171,23 +172,102 @@ if(v) v.playbackRate=currentSpeed;
 
 };
 
-//////////////////////////////////////////////////
-// LOGIN BUTTON
-//////////////////////////////////////////////////
-
 document.getElementById("btnLogin").onclick=autoLogin;
 
 }
 
 //////////////////////////////////////////////////
-// SCAN LESSON <100%
+// TYPEWRITER LOG SYSTEM
 //////////////////////////////////////////////////
 
-function scanLessons(){
+let logQueue=[];
+let logRunning=false;
+
+function hubLog(text,color){
+
+logQueue.push({text,color});
+
+if(!logRunning) runLog();
+
+}
+
+function runLog(){
+
+if(logQueue.length===0){
+
+logRunning=false;
+return;
+
+}
+
+logRunning=true;
+
+const item=logQueue.shift();
 
 const box=document.getElementById("jumpBox");
 
-if(!box) return;
+const line=document.createElement("div");
+
+if(item.color) line.style.color=item.color;
+
+box.appendChild(line);
+
+let i=0;
+
+function type(){
+
+if(i<item.text.length){
+
+line.textContent+=item.text[i];
+i++;
+
+box.scrollTop=box.scrollHeight;
+
+setTimeout(type,20);
+
+}else{
+
+setTimeout(runLog,400);
+
+}
+
+}
+
+type();
+
+}
+
+//////////////////////////////////////////////////
+// WELCOME LOG
+//////////////////////////////////////////////////
+
+function welcomeLogs(){
+
+hubLog("⚡ Danhvux Hub đang khởi động...","#a6e3a1");
+
+setTimeout(()=>{
+hubLog("🔍 Đang quét hệ thống bài học...");
+},700);
+
+setTimeout(()=>{
+hubLog("🎬 Kiểm tra video...");
+},1400);
+
+setTimeout(()=>{
+hubLog("📊 Chuẩn bị dữ liệu...");
+},2000);
+
+setTimeout(()=>{
+hubLog("🚀 Hub sẵn sàng","#a6e3a1");
+},2600);
+
+}
+
+//////////////////////////////////////////////////
+// SCAN LESSONS <100%
+//////////////////////////////////////////////////
+
+function scanLessons(){
 
 let lessons=[];
 
@@ -213,12 +293,7 @@ el.getAttribute("href");
 
 const title=txt.split("\n")[0].trim();
 
-lessons.push({
-title,
-percent,
-link,
-el
-});
+lessons.push({title,percent,link,el});
 
 }
 
@@ -230,41 +305,16 @@ const unique=[
 
 if(unique.length===0){
 
-box.innerHTML="🎉 Đã hoàn thành 100%";
-
+hubLog("✔ Không phát hiện bài chưa học","#a6e3a1");
 return;
 
 }
 
-box.innerHTML="";
+hubLog("⚠ Phát hiện "+unique.length+" bài chưa học","#f38ba8");
 
 unique.forEach(item=>{
 
-const div=document.createElement("div");
-
-div.style.cssText=`
-padding:6px;
-margin-bottom:4px;
-background:#313244;
-border-radius:4px;
-cursor:pointer;
-border-left:3px solid #f38ba8;
-`;
-
-div.innerText=`⚡ ${item.title} (${item.percent}%)`;
-
-div.onclick=()=>{
-
-if(item.link && item.link.startsWith("http")){
-window.location.href=item.link;
-}else{
-item.el.scrollIntoView();
-item.el.click();
-}
-
-};
-
-box.appendChild(div);
+hubLog("• "+item.title+" ("+item.percent+"%)","#f38ba8");
 
 });
 
@@ -302,13 +352,19 @@ createHub();
 
 setTimeout(()=>{
 
+welcomeLogs();
+
+setTimeout(()=>{
+
 scanLessons();
 
-setInterval(scanLessons,3000);
+setInterval(scanLessons,5000);
 
 setInterval(videoLoop,1000);
 
-},2000);
+},3500);
+
+},800);
 
 setTimeout(autoLogin,2500);
 
@@ -339,3 +395,4 @@ p.style.display==="none"?"block":"none";
 });
 
 })();
+```
