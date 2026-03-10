@@ -1,13 +1,13 @@
 (function(){
 'use strict';
 
-let currentSpeed=2;
+let currentSpeed = 2;
 
 //////////////////////////////////////////////////
 // ACCOUNT
 //////////////////////////////////////////////////
 
-const accounts=[
+const accounts = [
 {u:"USERNAME",p:"PASSWORD"}
 ];
 
@@ -16,26 +16,22 @@ const accounts=[
 //////////////////////////////////////////////////
 
 function fill(el,val){
-
 if(!el) return;
 
 el.focus();
-el.value=val;
+el.value = val;
 
 ["input","change","keyup"].forEach(e=>{
 el.dispatchEvent(new Event(e,{bubbles:true}));
 });
-
 }
 
 function autoLogin(){
 
-const inputs=[...document.querySelectorAll("input")];
+const user=document.querySelector("input[type=text],input[type=email]");
+const pass=document.querySelector("input[type=password]");
 
-const user=inputs.find(i=>i.type==="text"||i.type==="email");
-const pass=inputs.find(i=>i.type==="password");
-
-if(user&&pass){
+if(user && pass){
 
 fill(user,accounts[0].u);
 
@@ -45,16 +41,16 @@ fill(pass,accounts[0].p);
 
 setTimeout(()=>{
 document.querySelector("button[type=submit]")?.click();
-},400);
+},500);
 
-},400);
+},500);
 
 }
 
 }
 
 //////////////////////////////////////////////////
-// HUB UI
+// UI HUB
 //////////////////////////////////////////////////
 
 function createHub(){
@@ -80,13 +76,6 @@ box-shadow:0 10px 40px rgba(0,0,0,.6);
 
 <h3 style="margin:0;text-align:center">Danhvux Hub</h3>
 
-<div style="display:flex;margin-top:8px;gap:4px">
-<button id="tabHub" style="flex:1">HUB</button>
-<button id="tabSubjects" style="flex:1">MÔN</button>
-</div>
-
-<div id="hubTab">
-
 <div style="font-size:12px;margin-top:8px">
 Speed: <b id="spdTxt">x2</b>
 </div>
@@ -99,7 +88,7 @@ background:#181825;
 padding:8px;
 border-radius:8px;
 font-size:11px;
-max-height:150px;
+max-height:160px;
 overflow:auto">
 Scanning lessons...
 </div>
@@ -117,61 +106,33 @@ AUTO LOGIN
 </button>
 
 </div>
-
-<div id="subjectTab" style="
-display:none;
-margin-top:8px;
-background:#181825;
-padding:8px;
-border-radius:8px;
-font-size:11px;
-max-height:150px;
-overflow:auto">
-Scanning subjects...
-</div>
-
-</div>
 `;
 
 document.body.insertAdjacentHTML("beforeend",html);
 
 //////////////////////////////////////////////////
-// TAB
+// SPEED CONTROL
 //////////////////////////////////////////////////
 
-document.getElementById("tabHub").onclick=()=>{
-hubTab.style.display="block";
-subjectTab.style.display="none";
-};
+const spd=document.getElementById("spdRange");
 
-document.getElementById("tabSubjects").onclick=()=>{
-hubTab.style.display="none";
-subjectTab.style.display="block";
-scanSubjects();
-};
-
-//////////////////////////////////////////////////
-// SPEED
-//////////////////////////////////////////////////
-
-spdRange.oninput=e=>{
+spd.oninput=e=>{
 
 currentSpeed=parseInt(e.target.value);
 
-spdTxt.innerText="x"+currentSpeed;
+document.getElementById("spdTxt").innerText="x"+currentSpeed;
 
 const v=document.querySelector("video");
-
 if(v) v.playbackRate=currentSpeed;
 
 };
 
-btnLogin.onclick=autoLogin;
+document.getElementById("btnLogin").onclick=autoLogin;
 
 }
 
 //////////////////////////////////////////////////
-// SCAN LESSONS (SIDEBAR ONLY)
+// SCAN LESSONS (K12 SIDEBAR)
 //////////////////////////////////////////////////
 
 function scanLessons(){
@@ -179,50 +140,43 @@ function scanLessons(){
 const box=document.getElementById("jumpBox");
 if(!box) return;
 
-const sidebar=document.querySelector(".ant-tree,.tree,.sidebar");
-
-if(!sidebar){
-box.innerHTML="Sidebar not detected";
-return;
-}
+const nodes=document.querySelectorAll(".ant-tree-node-content-wrapper");
 
 let lessons=[];
 
-sidebar.querySelectorAll("*").forEach(el=>{
+nodes.forEach(node=>{
 
-const txt=(el.innerText||"").trim();
+const titleEl=node.querySelector(".ant-tree-title");
 
-if(!txt.includes("%")) return;
+if(!titleEl) return;
 
-const m=txt.match(/(\d+)%/);
+const text=titleEl.textContent.trim();
+
+const m=text.match(/\((\d+)%\)/);
 if(!m) return;
 
 const percent=parseInt(m[1]);
 
 if(percent>=100) return;
 
-let title=txt.replace(/\(\d+%\)/,"").trim();
+const title=text.replace(/\(\d+%\)/,"").trim();
 
-if(title.length>60) title=title.slice(0,60);
-
-let link=el.closest("a")?.href||null;
-
-lessons.push({title,percent,link,el});
+lessons.push({
+title:title,
+percent:percent,
+node:node
+});
 
 });
 
-const unique=[...new Map(lessons.map(x=>[x.title,x])).values()];
-
 box.innerHTML="";
 
-if(unique.length===0){
-
-box.innerHTML="🎉 All lessons completed";
+if(lessons.length===0){
+box.innerHTML="🎉 Không còn bài chưa học";
 return;
-
 }
 
-unique.forEach(item=>{
+lessons.forEach(item=>{
 
 const div=document.createElement("div");
 
@@ -230,92 +184,16 @@ div.style.cssText=`
 padding:6px;
 margin-bottom:4px;
 background:#313244;
-border-radius:4px;
+border-radius:6px;
 cursor:pointer;
 border-left:3px solid #f38ba8;
 `;
 
-div.innerText=`⚡ ${item.title} (${item.percent}%)`;
+div.textContent=`⚡ ${item.title} (${item.percent}%)`;
 
 div.onclick=()=>{
-
-if(item.link){
-window.location.href=item.link;
-}else{
-item.el.click();
-}
-
+item.node.click();
 };
-
-box.appendChild(div);
-
-});
-
-}
-
-//////////////////////////////////////////////////
-// SCAN SUBJECTS
-//////////////////////////////////////////////////
-
-function scanSubjects(){
-
-const box=document.getElementById("subjectTab");
-if(!box) return;
-
-let subjects=[];
-
-document.querySelectorAll("div,span,a").forEach(el=>{
-
-const txt=(el.innerText||"").trim();
-
-if(!txt) return;
-
-if(txt.includes("GV")||txt.includes("Giáo viên")){
-
-const lines=txt.split("\n");
-
-let subject=lines[0]?.trim();
-let teacher="";
-
-lines.forEach(l=>{
-
-let m=l.match(/(?:GV|Giáo viên)[:\s]+(.+)/i);
-
-if(m) teacher=m[1];
-
-});
-
-if(teacher && subject){
-
-subjects.push(`${teacher} | ${subject}`);
-
-}
-
-}
-
-});
-
-const unique=[...new Set(subjects)];
-
-box.innerHTML="";
-
-if(unique.length===0){
-box.innerHTML="No subjects found";
-return;
-}
-
-unique.forEach(t=>{
-
-const div=document.createElement("div");
-
-div.style.cssText=`
-padding:6px;
-margin-bottom:4px;
-background:#313244;
-border-radius:4px;
-`;
-
-div.innerText=t;
 
 box.appendChild(div);
 
@@ -330,6 +208,7 @@ box.appendChild(div);
 function videoLoop(){
 
 const v=document.querySelector("video");
+
 if(!v) return;
 
 v.muted=true;
@@ -359,7 +238,7 @@ setTimeout(()=>{
 
 scanLessons();
 
-setInterval(scanLessons,6000);
+setInterval(scanLessons,5000);
 
 setInterval(videoLoop,1000);
 
@@ -369,10 +248,11 @@ setTimeout(autoLogin,3000);
 
 }
 
-if(document.readyState==="loading")
+if(document.readyState==="loading"){
 document.addEventListener("DOMContentLoaded",start);
-else
+}else{
 start();
+}
 
 //////////////////////////////////////////////////
 // HOTKEY
