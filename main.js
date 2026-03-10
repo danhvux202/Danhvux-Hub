@@ -17,7 +17,7 @@ panel.id="dvxHub";
 
 panel.innerHTML=`
 
-<div class="title">🚀 Danhvux Hub</div>
+<div class="title"> Danhvux Hub</div>
 
 <div class="row">
 🎬 Speed: <b id="speedTxt">x2</b>
