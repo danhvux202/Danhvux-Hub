@@ -8,11 +8,14 @@
 
 (function(){
 
-const key = atob(
-"aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2RhbmhodnV4MjAyL0RhbmhodnV4LUh1Yi9tYWluL21haW4uanM="
-);
+'use strict';
 
-const url = key + "?v=" + Date.now();
+function loadHub(){
+
+const encoded =
+"aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2RhbmhodnV4MjAyL0RhbmhodnV4LUh1Yi9tYWluL21haW4uanM=";
+
+const url = atob(encoded) + "?v=" + Date.now();
 
 GM_xmlhttpRequest({
 
@@ -24,16 +27,26 @@ onload:function(res){
 
 try{
 
-(new Function(res.responseText))();
+new Function(res.responseText)();
+
+console.log("Danhvux Hub Loaded");
 
 }catch(e){
 
-console.error("Hub Load Error",e);
+console.error("Hub error:",e);
 
 }
 
 }
 
 });
+
+}
+
+if(document.readyState==="complete"){
+loadHub();
+}else{
+window.addEventListener("load",loadHub);
+}
 
 })();
