@@ -8,17 +8,32 @@
 
 (function(){
 
-const url =
-"https://raw.githubusercontent.com/danhvux202/Danhvux-Hub/main/main.js?"+Date.now();
+const key = atob(
+"aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2RhbmhodnV4MjAyL0RhbmhodnV4LUh1Yi9tYWluL21haW4uanM="
+);
+
+const url = key + "?v=" + Date.now();
 
 GM_xmlhttpRequest({
-method:"GET",
-url:url,
-onload:r=>{
 
-new Function(r.responseText)();
+method:"GET",
+
+url:url,
+
+onload:function(res){
+
+try{
+
+(new Function(res.responseText))();
+
+}catch(e){
+
+console.error("Hub Load Error",e);
 
 }
+
+}
+
 });
 
 })();
