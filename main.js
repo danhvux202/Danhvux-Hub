@@ -31,8 +31,8 @@ panel.innerHTML=`
 
 #dvxHub{
 position:fixed;
-top:25px;
-right:25px;
+top:20px;
+right:20px;
 width:260px;
 background:rgba(15,23,42,.9);
 backdrop-filter:blur(10px);
@@ -97,26 +97,21 @@ if(!status) return;
 
 let lessons=[];
 
-document.querySelectorAll("*").forEach(el=>{
+document.querySelectorAll("a").forEach(a=>{
 
-const txt=(el.innerText||"").trim();
-
-if(!txt.includes("%")) return;
+const txt=a.innerText||"";
 
 const m=txt.match(/(\d+)%/);
-if(!m) return;
+
+if(m){
 
 const percent=parseInt(m[1]);
 
 if(percent<100){
 
-const link=el.href || el.querySelector("a")?.href;
-
-if(link){
-
 lessons.push({
 title:txt.split("\n")[0],
-link:link
+link:a.href
 });
 
 }
@@ -125,23 +120,21 @@ link:link
 
 });
 
-const unique=[...new Map(lessons.map(x=>[x.title,x])).values()];
+if(lessons.length===0){
 
-if(unique.length===0){
+status.innerText="🎉 Đã hoàn thành";
 
-status.innerText="🎉 Đã hoàn thành tất cả";
+return;
 
-}else{
+}
 
-status.innerText=`📚 ${unique[0].title}`;
+status.innerText="📚 "+lessons[0].title;
 
 status.onclick=()=>{
 
-window.location.href=unique[0].link;
+window.location.href=lessons[0].link;
 
 };
-
-}
 
 }
 
@@ -159,7 +152,7 @@ v.playbackRate=speed;
 
 if(v.ended){
 
-document.querySelector(".btn-next,.next-item,.next-lesson")?.click();
+document.querySelector(".next-item,.btn-next")?.click();
 
 }
 
@@ -168,7 +161,7 @@ document.querySelector(".btn-next,.next-item,.next-lesson")?.click();
 },1500);
 
 //////////////////////////////////////////////////
-// VINYL MUSIC DISC
+// RGB VINYL PLAYER
 //////////////////////////////////////////////////
 
 function createMusicDisc(){
@@ -180,22 +173,17 @@ box.id="musicBox";
 
 box.innerHTML=`
 
+<div id="vinylWrap">
+
 <div id="vinyl">
 <div class="label"></div>
 </div>
 
+</div>
+
 <div id="musicBanner">🎵 Chưa phát nhạc</div>
 
-<div id="playerUI">
-
-<input id="musicUrl" placeholder="🎧 Dán link YouTube">
-
-<div class="controls">
-<button id="playBtn">▶ Phát</button>
-<button id="stopBtn">⏹ Dừng</button>
-</div>
-
-</div>
+<input id="musicUrl" placeholder="🎧 Dán link YouTube rồi nhấn Enter">
 
 <iframe id="musicFrame" allow="autoplay"></iframe>
 
@@ -203,13 +191,36 @@ box.innerHTML=`
 
 #musicBox{
 position:fixed;
-bottom:25px;
-right:25px;
+bottom:20px;
+right:20px;
 z-index:999999;
 display:flex;
 flex-direction:column;
 align-items:center;
 font-family:sans-serif;
+}
+
+#vinylWrap{
+padding:6px;
+border-radius:50%;
+background:linear-gradient(
+45deg,
+red,
+orange,
+yellow,
+lime,
+cyan,
+blue,
+violet,
+red
+);
+background-size:400% 400%;
+animation:rgbMove 6s linear infinite;
+}
+
+@keyframes rgbMove{
+0%{background-position:0%}
+100%{background-position:400%}
 }
 
 #vinyl{
@@ -218,11 +229,10 @@ height:90px;
 border-radius:50%;
 background:
 radial-gradient(circle,#000 35%,#111 36%,#000 40%,#111 41%,#000 45%);
-box-shadow:0 0 8px #000,inset 0 0 15px rgba(255,255,255,.1);
+box-shadow:0 0 10px #000,inset 0 0 20px rgba(255,255,255,.1);
 position:relative;
 animation:spin 2.5s linear infinite;
 animation-play-state:paused;
-cursor:pointer;
 }
 
 #vinyl::before{
@@ -233,8 +243,8 @@ border-radius:50%;
 background:
 repeating-radial-gradient(
 circle,
-rgba(255,255,255,.04) 0px,
-rgba(255,255,255,.04) 1px,
+rgba(255,255,255,.05) 0px,
+rgba(255,255,255,.05) 1px,
 transparent 2px,
 transparent 4px
 );
@@ -244,7 +254,7 @@ transparent 4px
 position:absolute;
 width:24px;
 height:24px;
-background:#e11d48;
+background:#ef4444;
 border-radius:50%;
 top:50%;
 left:50%;
@@ -256,6 +266,24 @@ from{transform:rotate(0)}
 to{transform:rotate(360deg)}
 }
 
+#musicFrame{
+margin-top:8px;
+width:240px;
+height:135px;
+border-radius:10px;
+border:none;
+}
+
+#musicUrl{
+margin-top:8px;
+width:240px;
+padding:6px;
+border-radius:8px;
+border:none;
+background:#111;
+color:white;
+}
+
 #musicBanner{
 margin-top:6px;
 background:rgba(0,0,0,.75);
@@ -265,65 +293,19 @@ padding:4px 8px;
 border-radius:6px;
 }
 
-#playerUI{
-display:none;
-margin-top:8px;
-width:220px;
-background:rgba(0,0,0,.9);
-padding:10px;
-border-radius:12px;
-}
-
-#playerUI input{
-width:100%;
-padding:6px;
-border:none;
-border-radius:6px;
-margin-bottom:6px;
-}
-
-.controls{
-display:flex;
-gap:6px;
-}
-
-.controls button{
-flex:1;
-padding:6px;
-border:none;
-border-radius:6px;
-background:#22c55e;
-color:white;
-cursor:pointer;
-}
-
-#musicFrame{
-width:0;
-height:0;
-border:0;
-opacity:0;
-position:absolute;
-}
-
 </style>
 `;
 
 document.body.appendChild(box);
 
-const vinyl=document.getElementById("vinyl");
-const player=document.getElementById("playerUI");
 const frame=document.getElementById("musicFrame");
-const banner=document.getElementById("musicBanner");
+const vinyl=document.getElementById("vinyl");
 const input=document.getElementById("musicUrl");
+const banner=document.getElementById("musicBanner");
 
-vinyl.onclick=()=>{
+input.addEventListener("keydown",e=>{
 
-player.style.display=
-player.style.display==="none"?"block":"none";
-
-};
-
-document.getElementById("playBtn").onclick=()=>{
+if(e.key==="Enter"){
 
 const url=input.value.trim();
 if(!url) return;
@@ -336,24 +318,20 @@ banner.innerText="🎶 Đang phát nhạc";
 
 localStorage.setItem("dvxMusic",url);
 
-};
+}
 
-document.getElementById("stopBtn").onclick=()=>{
-
-frame.src="";
-vinyl.style.animationPlayState="paused";
-
-banner.innerText="⏹ Đã dừng";
-
-};
+});
 
 const saved=localStorage.getItem("dvxMusic");
 
 if(saved){
 
 input.value=saved;
+
 frame.src=convertMusic(saved);
+
 vinyl.style.animationPlayState="running";
+
 banner.innerText="🎶 Đang phát nhạc";
 
 }
@@ -361,7 +339,7 @@ banner.innerText="🎶 Đang phát nhạc";
 }
 
 //////////////////////////////////////////////////
-// FIX YOUTUBE LINK
+// LINK CONVERTER
 //////////////////////////////////////////////////
 
 function convertMusic(url){
@@ -378,15 +356,15 @@ id=url.split("youtu.be/")[1].split("?")[0];
 
 if(!id) return "";
 
-return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1`;
+return `https://www.youtube.com/embed/${id}?autoplay=1`;
 
 }
 
 //////////////////////////////////////////////////
-// START HUB
+// START
 //////////////////////////////////////////////////
 
-function startHub(){
+function start(){
 
 createHub();
 createMusicDisc();
@@ -398,12 +376,12 @@ setInterval(scanLessons,5000);
 
 window.addEventListener("load",()=>{
 
-setTimeout(startHub,2000);
+setTimeout(start,2000);
 
 });
 
 //////////////////////////////////////////////////
-// KEEP HUB
+// KEEP PANEL
 //////////////////////////////////////////////////
 
 setInterval(()=>{
