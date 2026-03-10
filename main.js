@@ -7,7 +7,7 @@ let currentSpeed = 2;
 // ACCOUNT
 //////////////////////////////////////////////////
 
-const accounts = [
+const accounts=[
 {u:"USERNAME",p:"PASSWORD"}
 ];
 
@@ -16,14 +16,16 @@ const accounts = [
 //////////////////////////////////////////////////
 
 function fill(el,val){
+
 if(!el) return;
 
 el.focus();
-el.value = val;
+el.value=val;
 
 ["input","change","keyup"].forEach(e=>{
 el.dispatchEvent(new Event(e,{bubbles:true}));
 });
+
 }
 
 function autoLogin(){
@@ -50,7 +52,7 @@ document.querySelector("button[type=submit]")?.click();
 }
 
 //////////////////////////////////////////////////
-// UI HUB
+// HUB UI
 //////////////////////////////////////////////////
 
 function createHub(){
@@ -88,7 +90,7 @@ background:#181825;
 padding:8px;
 border-radius:8px;
 font-size:11px;
-max-height:160px;
+max-height:170px;
 overflow:auto">
 Scanning lessons...
 </div>
@@ -132,7 +134,7 @@ document.getElementById("btnLogin").onclick=autoLogin;
 }
 
 //////////////////////////////////////////////////
-// SCAN LESSONS (K12 SIDEBAR)
+// SCAN LESSONS (<100%)
 //////////////////////////////////////////////////
 
 function scanLessons(){
@@ -146,23 +148,19 @@ let lessons=[];
 
 nodes.forEach(node=>{
 
-const titleEl=node.querySelector(".ant-tree-title");
+const title=node.innerText.trim();
 
-if(!titleEl) return;
-
-const text=titleEl.textContent.trim();
-
-const m=text.match(/\((\d+)%\)/);
+const m=title.match(/\((\d+)%\)/);
 if(!m) return;
 
 const percent=parseInt(m[1]);
 
 if(percent>=100) return;
 
-const title=text.replace(/\(\d+%\)/,"").trim();
+const cleanTitle=title.replace(/\(\d+%\)/,"").trim();
 
 lessons.push({
-title:title,
+title:cleanTitle,
 percent:percent,
 node:node
 });
@@ -172,8 +170,10 @@ node:node
 box.innerHTML="";
 
 if(lessons.length===0){
-box.innerHTML="🎉 Không còn bài chưa học";
+
+box.innerHTML="🎉 Tất cả bài đã hoàn thành";
 return;
+
 }
 
 lessons.forEach(item=>{
