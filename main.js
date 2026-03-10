@@ -181,11 +181,15 @@ box.innerHTML=`
 
 </div>
 
+<div id="musicUI">
+
 <div id="musicBanner">🎵 Chưa phát nhạc</div>
 
-<input id="musicUrl" placeholder="🎧 Dán link YouTube rồi nhấn Enter">
+<input id="musicUrl" placeholder="🎧 Dán link YouTube rồi Enter">
 
 <iframe id="musicFrame" allow="autoplay"></iframe>
+
+</div>
 
 <style>
 
@@ -198,6 +202,12 @@ display:flex;
 flex-direction:column;
 align-items:center;
 font-family:sans-serif;
+}
+
+#musicUI{
+display:none;
+flex-direction:column;
+align-items:center;
 }
 
 #vinylWrap{
@@ -216,6 +226,7 @@ red
 );
 background-size:400% 400%;
 animation:rgbMove 6s linear infinite;
+cursor:pointer;
 }
 
 @keyframes rgbMove{
@@ -266,14 +277,6 @@ from{transform:rotate(0)}
 to{transform:rotate(360deg)}
 }
 
-#musicFrame{
-margin-top:8px;
-width:240px;
-height:135px;
-border-radius:10px;
-border:none;
-}
-
 #musicUrl{
 margin-top:8px;
 width:240px;
@@ -282,6 +285,14 @@ border-radius:8px;
 border:none;
 background:#111;
 color:white;
+}
+
+#musicFrame{
+margin-top:8px;
+width:240px;
+height:135px;
+border-radius:10px;
+border:none;
 }
 
 #musicBanner{
@@ -298,10 +309,19 @@ border-radius:6px;
 
 document.body.appendChild(box);
 
-const frame=document.getElementById("musicFrame");
+const vinylWrap=document.getElementById("vinylWrap");
 const vinyl=document.getElementById("vinyl");
+const ui=document.getElementById("musicUI");
+const frame=document.getElementById("musicFrame");
 const input=document.getElementById("musicUrl");
 const banner=document.getElementById("musicBanner");
+
+vinylWrap.onclick=()=>{
+
+ui.style.display=
+ui.style.display==="none"?"flex":"none";
+
+};
 
 input.addEventListener("keydown",e=>{
 
