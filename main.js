@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Danhvux-K12-Hub
+// @name         Danhvux-Panel-Beta-Version
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Danhvux Hub
+// @version      Alpha-1.0.0
+// @description  Sửa lỗi Auto Login
 // @author       Danhvux
 // @match        https://*.k12online.vn/*
 // @run-at       document-start
