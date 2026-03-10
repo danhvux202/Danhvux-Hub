@@ -7,34 +7,25 @@
 // ==/UserScript==
 
 (function(){
-
 'use strict';
 
 function loadHub(){
 
-const encoded =
-"aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2RhbmhodnV4MjAyL0RhbmhodnV4LUh1Yi9tYWluL21haW4uanM=";
+const encoded="aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2RhbmhodnV4MjAyL0RhbmhodnV4LUh1Yi9tYWluL21haW4uanM=";
 
-const url = atob(encoded) + "?v=" + Date.now();
+const url=atob(encoded)+"?v="+Date.now();
 
 GM_xmlhttpRequest({
-
 method:"GET",
-
 url:url,
 
 onload:function(res){
 
 try{
-
 new Function(res.responseText)();
-
 console.log("Danhvux Hub Loaded");
-
 }catch(e){
-
-console.error("Hub error:",e);
-
+console.error("Hub error",e);
 }
 
 }
