@@ -1,10 +1,3 @@
-// ==UserScript==
-// @name         Danhvux Hub Ultimate
-// @match        *://*.k12online.vn/*
-// @run-at       document-end
-// @grant        none
-// ==/UserScript==
-
 (function(){
 
 "use strict";
