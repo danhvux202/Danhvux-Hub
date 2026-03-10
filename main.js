@@ -5,10 +5,11 @@
 // CONFIG
 //////////////////////////////////////////////////
 
-let currentSpeed = 2;
-let welcomePlayed = false;
+let currentSpeed=2;
+let welcomePlayed=false;
+let tickerRunning=false;
 
-const accounts = [
+const accounts=[
 {
 u:"NHAP_TEN_VAO_DAY",
 p:"NHAP_MAT_KHAU_VAO_DAY"
@@ -21,8 +22,7 @@ p:"NHAP_MAT_KHAU_VAO_DAY"
 
 (function(){
 
-const d =
-Object.getOwnPropertyDescriptor(
+const d=Object.getOwnPropertyDescriptor(
 HTMLMediaElement.prototype,
 "playbackRate"
 );
@@ -50,117 +50,44 @@ d.set.call(this,v);
 // AUTO LOGIN
 //////////////////////////////////////////////////
 
-function deepFill(el,value){
+function deepFill(el,val){
 
 if(!el) return;
 
 el.focus();
-el.value=value;
+el.value=val;
 
 [
-'focus',
-'keydown',
-'keypress',
-'input',
-'keyup',
-'change',
-'blur'
-].forEach(t=>{
-el.dispatchEvent(
-new Event(t,{bubbles:true})
-);
+'focus','keydown','keypress',
+'input','keyup','change','blur'
+].forEach(e=>{
+el.dispatchEvent(new Event(e,{bubbles:true}));
 });
 
 }
 
 function autoLogin(){
 
-const user =
-document.querySelector(
-'input[type="text"],input[name="username"],#username'
+const user=document.querySelector(
+'input[type="text"],#username,input[name="username"]'
 );
 
-const pass =
-document.querySelector(
+const pass=document.querySelector(
 'input[type="password"],#password'
 );
 
-const btn =
-document.querySelector(
+const btn=document.querySelector(
 'button[type="submit"],.btn-login'
 );
 
-if(!user || !pass) return;
+if(!user||!pass) return;
 
-const acc = accounts[0];
+const acc=accounts[0];
 
 deepFill(user,acc.u);
 deepFill(pass,acc.p);
 
-setTimeout(()=>{
-btn?.click();
-},500);
-
-}
-
-//////////////////////////////////////////////////
-// WELCOME TICKER
-//////////////////////////////////////////////////
-
-let tickerRunning=false;
-
-function welcomeTicker(){
-
-if(welcomePlayed) return;
-
-const box=document.getElementById("jumpBox");
-if(!box) return;
-
-welcomePlayed=true;
-tickerRunning=true;
-
-const old=box.innerHTML;
-
-box.innerHTML=`
-<div style="overflow:hidden;height:20px;">
-<div id="tickerText"
-style="
-white-space:nowrap;
-font-weight:bold;
-color:#a6e3a1;">
-👋 CHÀO MỪNG BẠN ĐẾN VỚI DANHVUX HUB
-</div>
-</div>
-`;
-
-const text=document.getElementById("tickerText");
-
-let pos=280;
-
-function move(){
-
-pos--;
-
-text.style.transform=`translateX(${pos}px)`;
-
-if(pos>-text.scrollWidth){
-
-requestAnimationFrame(move);
-
-}else{
-
-setTimeout(()=>{
-
-box.innerHTML=old;
-tickerRunning=false;
-
-},400);
-
-}
-
-}
-
-move();
+setTimeout(()=>btn?.click(),600);
 
 }
 
@@ -172,7 +99,7 @@ function createPanel(){
 
 if(document.getElementById("danhvux-panel")) return;
 
-const html = `
+const html=`
 <div id="danhvux-panel" style="
 position:fixed;
 top:15px;
@@ -198,7 +125,7 @@ Danhvux Panel
 </h3>
 
 <div style="margin-top:12px;font-size:12px;">
-Tốc độ: <b id="speedTxt" style="color:#a6e3a1;">x2</b>
+Speed: <b id="speedTxt" style="color:#a6e3a1;">x2</b>
 </div>
 
 <input id="speedRange"
@@ -218,7 +145,7 @@ border-radius:8px;
 font-size:10px;
 max-height:120px;
 overflow:auto;">
-Đang quét bài chưa làm...
+Đang khởi động...
 </div>
 
 <button id="loginBtn" style="
@@ -226,7 +153,6 @@ margin-top:10px;
 width:100%;
 padding:10px;
 background:#f5c2e7;
-color:#111;
 border:none;
 border-radius:8px;
 font-weight:bold;
@@ -234,25 +160,12 @@ cursor:pointer;">
 AUTO LOGIN
 </button>
 
-<button id="scanBtn" style="
-margin-top:6px;
-width:100%;
-padding:10px;
-background:#a6e3a1;
-color:#111;
-border:none;
-border-radius:8px;
-font-weight:bold;
-cursor:pointer;">
-QUÉT BÀI
-</button>
-
 <div style="
 margin-top:8px;
 font-size:9px;
 text-align:center;
 color:#6c7086;">
-Nhấn H để ẩn / hiện panel
+Nhấn H để ẩn / hiện
 </div>
 
 </div>
@@ -261,8 +174,6 @@ Nhấn H để ẩn / hiện panel
 document.body.insertAdjacentHTML("beforeend",html);
 
 initPanel();
-
-setTimeout(welcomeTicker,600);
 
 }
 
@@ -274,65 +185,135 @@ function initPanel(){
 
 const range=document.getElementById("speedRange");
 
-range.oninput=(e)=>{
+range.oninput=e=>{
 
 currentSpeed=parseFloat(e.target.value);
 
 document.getElementById("speedTxt").innerText="x"+currentSpeed;
 
 const v=document.querySelector("video");
+
 if(v) v.playbackRate=currentSpeed;
 
 };
 
 document.getElementById("loginBtn").onclick=autoLogin;
 
-document.getElementById("scanBtn").onclick=scanLessons;
+}
+
+//////////////////////////////////////////////////
+// TICKER
+//////////////////////////////////////////////////
+
+function welcomeTicker(){
+
+if(welcomePlayed) return;
+
+const box=document.getElementById("jumpBox");
+if(!box) return;
+
+welcomePlayed=true;
+tickerRunning=true;
+
+const msg="👋 CHÀO MỪNG BẠN ĐẾN VỚI DANHVUX HUB";
+
+let i=0;
+box.innerHTML="";
+
+function type(){
+
+if(i<msg.length){
+
+box.innerHTML+=msg[i];
+i++;
+
+setTimeout(type,35);
+
+}else{
+
+setTimeout(()=>{
+tickerRunning=false;
+startScan();
+},800);
+
+}
+
+}
+
+type();
 
 }
 
 //////////////////////////////////////////////////
-// SCAN LESSON
+// SCAN LESSON 100%
 //////////////////////////////////////////////////
 
-function scanLessons(){
+function startScan(){
 
 const box=document.getElementById("jumpBox");
-
 if(!box) return;
 
-box.innerHTML="";
+const lessons=new Set();
 
-let found=0;
+function scan(){
 
 document.querySelectorAll("a,div,span").forEach(el=>{
 
-const txt=el.innerText||"";
+const txt=(el.innerText||"").trim();
+
+if(!txt) return;
 
 if(
 txt.includes("Chưa làm")||
 txt.includes("chưa làm")||
-txt.includes("Incomplete")
+txt.includes("Incomplete")||
+txt.includes("0%")
 ){
 
-found++;
-
-const line=document.createElement("div");
-
-line.textContent="• "+txt.trim();
-line.style.color="#f38ba8";
-
-box.appendChild(line);
+lessons.add(txt);
 
 }
 
 });
 
-if(found===0){
-
-box.innerHTML="<span style='color:#a6e3a1'>✔ Không phát hiện bài thiếu</span>";
+render();
 
 }
+
+function render(){
+
+if(tickerRunning) return;
+
+box.innerHTML="";
+
+if(lessons.size===0){
+
+box.innerHTML="<span style='color:#f9e2af'>Không phát hiện bài thiếu</span>";
+return;
+
+}
+
+lessons.forEach(t=>{
+
+const line=document.createElement("div");
+
+line.textContent="• "+t;
+line.style.color="#f38ba8";
+
+box.appendChild(line);
+
+});
+
+}
+
+scan();
+
+const observer=new MutationObserver(scan);
+
+observer.observe(document.body,{
+childList:true,
+subtree:true
+});
 
 }
 
@@ -353,9 +334,9 @@ v.playbackRate=currentSpeed;
 
 if(v.ended){
 
-const next =
-document.querySelector(".btn-next") ||
-document.querySelector(".next-lesson") ||
+const next=
+document.querySelector(".btn-next")||
+document.querySelector(".next-lesson")||
 document.querySelector(".next-item");
 
 next?.click();
@@ -368,7 +349,7 @@ next?.click();
 // HOTKEY
 //////////////////////////////////////////////////
 
-window.addEventListener("keydown",(e)=>{
+window.addEventListener("keydown",e=>{
 
 if(e.key.toLowerCase()==="h"){
 
@@ -376,9 +357,9 @@ const p=document.getElementById("danhvux-panel");
 
 if(!p) return;
 
-p.style.display =
+p.style.display=
 p.style.display==="none"
-? "block":"none";
+?"block":"none";
 
 }
 
@@ -394,7 +375,7 @@ createPanel();
 
 setInterval(videoLoop,1000);
 
-setTimeout(scanLessons,2000);
+setTimeout(welcomeTicker,800);
 
 setTimeout(autoLogin,1500);
 
