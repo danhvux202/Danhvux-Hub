@@ -4,112 +4,98 @@
 
 let speed = 2;
 
-//////////////////////////////////////////////////////
-// TẠO PANEL
-//////////////////////////////////////////////////////
+//////////////////////////////////////////////////
+// PANEL
+//////////////////////////////////////////////////
 
 function createHub(){
 
-if(document.getElementById("dvx-panel")) return;
+if(document.getElementById("dvxHub")) return;
 
-const hub=document.createElement("div");
+const panel=document.createElement("div");
+panel.id="dvxHub";
 
-hub.innerHTML=`
+panel.innerHTML=`
 
-<div id="dvx-panel">
+<div id="dvxHeader">Danhvux Hub</div>
 
-<div class="dvx-title">Danhvux Hub</div>
-
-<div class="dvx-speed">
-Tốc độ video: <span id="dvx-speed-text">x2</span>
+<div class="dvxRow">
+Tốc độ: <b id="dvxSpeedTxt">x2</b>
 </div>
 
-<input id="dvx-speed" type="range" min="1" max="16" value="2">
+<input id="dvxSpeed" type="range" min="1" max="16" value="2">
 
-<div class="dvx-stats">
-Bài chưa học: <b id="dvx-count">0</b>
-</div>
+<div id="dvxStatus">Đang quét bài học...</div>
 
-<div id="dvx-lessons">
-Đang quét bài học...
-</div>
+<div id="dvxLessons"></div>
 
-<div class="dvx-buttons">
-<button id="dvx-scan">Quét lại</button>
-<button id="dvx-hide">Ẩn</button>
-</div>
-
+<div class="dvxBtns">
+<button id="dvxScan">Quét lại</button>
+<button id="dvxLogin">Auto Login</button>
 </div>
 
 <style>
 
-#dvx-panel{
+#dvxHub{
 position:fixed;
 top:20px;
 right:20px;
 width:300px;
-padding:18px;
-border-radius:14px;
-backdrop-filter:blur(10px);
-background:rgba(10,12,30,.9);
+padding:16px;
+border-radius:16px;
+background:linear-gradient(180deg,#0b0d20,#0d1130);
 color:white;
 font-family:sans-serif;
 z-index:999999;
 border:2px solid #ff4fa3;
-box-shadow:0 0 20px rgba(255,80,160,.6);
+box-shadow:0 0 25px rgba(255,80,150,.6);
+backdrop-filter:blur(10px);
 }
 
-.dvx-title{
+#dvxHeader{
 text-align:center;
-font-size:20px;
+font-size:22px;
 font-weight:700;
 margin-bottom:10px;
 }
 
-.dvx-speed{
-font-size:13px;
-margin-bottom:4px;
-}
-
-#dvx-speed{
+#dvxSpeed{
 width:100%;
-margin-bottom:8px;
+margin:6px 0 8px;
 }
 
-.dvx-stats{
-font-size:12px;
-margin-bottom:6px;
-color:#ddd;
-}
-
-#dvx-lessons{
-background:#12152d;
+#dvxStatus{
+background:#151938;
 padding:8px;
 border-radius:8px;
-max-height:170px;
-overflow:auto;
 font-size:12px;
+margin-bottom:6px;
 }
 
-.dvx-lesson{
+#dvxLessons{
+max-height:160px;
+overflow:auto;
+}
+
+.dvxLesson{
+background:#1f244f;
 padding:6px;
-margin-bottom:4px;
-background:#1e2247;
 border-radius:6px;
+margin-bottom:4px;
 cursor:pointer;
 }
 
-.dvx-lesson:hover{
-background:#2e3470;
+.dvxLesson:hover{
+background:#2f3680;
 }
 
-.dvx-buttons{
+.dvxBtns{
 display:flex;
 gap:6px;
-margin-top:10px;
+margin-top:8px;
 }
 
-.dvx-buttons button{
+.dvxBtns button{
 flex:1;
 padding:8px;
 border:none;
@@ -118,52 +104,86 @@ cursor:pointer;
 font-weight:600;
 }
 
-#dvx-scan{
-background:#6ea8ff;
-color:white;
-}
-
-#dvx-hide{
-background:#ff6b8a;
-color:white;
-}
+#dvxScan{background:#4da3ff;color:white;}
+#dvxLogin{background:#8fd19e;color:white;}
 
 </style>
 `;
 
-document.body.appendChild(hub);
+document.body.appendChild(panel);
 
-//////////////////////////////////////////////////////
+//////////////////////////////////////////////////
+// DRAG PANEL
+//////////////////////////////////////////////////
+
+let isDown=false,offX,offY;
+
+panel.onmousedown=e=>{
+isDown=true;
+offX=e.offsetX;
+offY=e.offsetY;
+};
+
+document.onmouseup=()=>isDown=false;
+
+document.onmousemove=e=>{
+if(!isDown) return;
+panel.style.left=e.pageX-offX+"px";
+panel.style.top=e.pageY-offY+"px";
+};
+
+//////////////////////////////////////////////////
 // SPEED
-//////////////////////////////////////////////////////
+//////////////////////////////////////////////////
 
-document.getElementById("dvx-speed").oninput=e=>{
+document.getElementById("dvxSpeed").oninput=e=>{
 
 speed=parseInt(e.target.value);
 
-document.getElementById("dvx-speed-text").innerText="x"+speed;
+document.getElementById("dvxSpeedTxt").innerText="x"+speed;
 
 let v=document.querySelector("video");
 if(v) v.playbackRate=speed;
 
 };
 
-document.getElementById("dvx-scan").onclick=scanLessons;
+document.getElementById("dvxScan").onclick=scanLessons;
 
-document.getElementById("dvx-hide").onclick=()=>{
-document.getElementById("dvx-panel").style.display="none";
-};
+document.getElementById("dvxLogin").onclick=autoLogin;
 
 }
 
-//////////////////////////////////////////////////////
-// QUÉT BÀI
-//////////////////////////////////////////////////////
+//////////////////////////////////////////////////
+// AUTO LOGIN
+//////////////////////////////////////////////////
+
+function autoLogin(){
+
+let u=document.querySelector("input[type=text],input[type=email]");
+let p=document.querySelector("input[type=password]");
+
+if(!u || !p) return;
+
+u.value="USERNAME";
+p.value="PASSWORD";
+
+u.dispatchEvent(new Event("input",{bubbles:true}));
+p.dispatchEvent(new Event("input",{bubbles:true}));
+
+setTimeout(()=>{
+document.querySelector("button[type=submit]")?.click();
+},500);
+
+}
+
+//////////////////////////////////////////////////
+// SCAN LESSONS
+//////////////////////////////////////////////////
 
 function scanLessons(){
 
-let box=document.getElementById("dvx-lessons");
-let count=document.getElementById("dvx-count");
+const box=document.getElementById("dvxLessons");
+const status=document.getElementById("dvxStatus");
 
 if(!box) return;
 
@@ -184,37 +204,31 @@ if(percent>=100) return;
 
 let name=text.replace(/\(\d+%\)/,"").trim();
 
-lessons.push({
-name,
-percent,
-el
-});
+lessons.push({name,percent,el});
 
 });
 
-count.innerText=lessons.length;
+box.innerHTML="";
 
-if(lessons.length===0){
+if(!lessons.length){
 
-box.innerHTML="✔ Tất cả bài đã hoàn thành";
+status.innerText="✔ Tất cả bài đã hoàn thành";
 
 return;
 
 }
 
-box.innerHTML="";
+status.innerText="Bài chưa học: "+lessons.length;
 
 lessons.forEach(ls=>{
 
 let div=document.createElement("div");
 
-div.className="dvx-lesson";
+div.className="dvxLesson";
 
 div.innerText=`⚡ ${ls.name} (${ls.percent}%)`;
 
-div.onclick=()=>{
-ls.el.click();
-};
+div.onclick=()=>ls.el.click();
 
 box.appendChild(div);
 
@@ -222,9 +236,9 @@ box.appendChild(div);
 
 }
 
-//////////////////////////////////////////////////////
+//////////////////////////////////////////////////
 // VIDEO AUTO
-//////////////////////////////////////////////////////
+//////////////////////////////////////////////////
 
 function videoLoop(){
 
@@ -249,9 +263,9 @@ if(next) next.click();
 
 }
 
-//////////////////////////////////////////////////////
+//////////////////////////////////////////////////
 // START
-//////////////////////////////////////////////////////
+//////////////////////////////////////////////////
 
 function start(){
 
@@ -273,5 +287,23 @@ if(document.readyState==="loading")
 document.addEventListener("DOMContentLoaded",start);
 else
 start();
+
+//////////////////////////////////////////////////
+// HOTKEY
+//////////////////////////////////////////////////
+
+window.addEventListener("keydown",e=>{
+
+if(e.key.toLowerCase()==="h"){
+
+let hub=document.getElementById("dvxHub");
+
+hub.style.display=
+hub.style.display==="none"
+?"block":"none";
+
+}
+
+});
 
 })();
