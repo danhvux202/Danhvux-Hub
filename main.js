@@ -1,3 +1,10 @@
+// ==UserScript==
+// @name         Danhvux Hub Log Edition
+// @match        https://*.k12online.vn/*
+// @run-at       document-end
+// @grant        none
+// ==/UserScript==
+
 (function(){
 'use strict';
 
@@ -6,8 +13,6 @@
 //////////////////////////////////////////////////
 
 let currentSpeed=2;
-let welcomePlayed=false;
-let tickerRunning=false;
 
 const accounts=[
 {
@@ -47,51 +52,6 @@ d.set.call(this,v);
 })();
 
 //////////////////////////////////////////////////
-// AUTO LOGIN
-//////////////////////////////////////////////////
-
-function deepFill(el,val){
-
-if(!el) return;
-
-el.focus();
-el.value=val;
-
-[
-'focus','keydown','keypress',
-'input','keyup','change','blur'
-].forEach(e=>{
-el.dispatchEvent(new Event(e,{bubbles:true}));
-});
-
-}
-
-function autoLogin(){
-
-const user=document.querySelector(
-'input[type="text"],#username,input[name="username"]'
-);
-
-const pass=document.querySelector(
-'input[type="password"],#password'
-);
-
-const btn=document.querySelector(
-'button[type="submit"],.btn-login'
-);
-
-if(!user||!pass) return;
-
-const acc=accounts[0];
-
-deepFill(user,acc.u);
-deepFill(pass,acc.p);
-
-setTimeout(()=>btn?.click(),600);
-
-}
-
-//////////////////////////////////////////////////
 // PANEL UI
 //////////////////////////////////////////////////
 
@@ -121,7 +81,7 @@ text-align:center;
 color:#f5e0dc;
 border-bottom:1px solid #45475a;
 padding-bottom:6px;">
-Danhvux Panel
+Danhvux Hub
 </h3>
 
 <div style="margin-top:12px;font-size:12px;">
@@ -143,9 +103,8 @@ border:1px solid #313244;
 padding:8px;
 border-radius:8px;
 font-size:10px;
-max-height:120px;
+max-height:150px;
 overflow:auto;">
-Đang khởi động...
 </div>
 
 <button id="loginBtn" style="
@@ -202,56 +161,91 @@ document.getElementById("loginBtn").onclick=autoLogin;
 }
 
 //////////////////////////////////////////////////
-// TICKER
+// HUB LOG SYSTEM
 //////////////////////////////////////////////////
 
-function welcomeTicker(){
-
-if(welcomePlayed) return;
+function hubLog(text,color){
 
 const box=document.getElementById("jumpBox");
 if(!box) return;
 
-welcomePlayed=true;
-tickerRunning=true;
+const line=document.createElement("div");
 
-const msg="👋 CHÀO MỪNG BẠN ĐẾN VỚI DANHVUX HUB";
+line.textContent=text;
 
-let i=0;
-box.innerHTML="";
+if(color) line.style.color=color;
 
-function type(){
+box.appendChild(line);
 
-if(i<msg.length){
-
-box.innerHTML+=msg[i];
-i++;
-
-setTimeout(type,35);
-
-}else{
-
-setTimeout(()=>{
-tickerRunning=false;
-startScan();
-},800);
-
-}
-
-}
-
-type();
+box.scrollTop=box.scrollHeight;
 
 }
 
 //////////////////////////////////////////////////
-// SCAN LESSON 100%
+// AUTO LOGIN
+//////////////////////////////////////////////////
+
+function deepFill(el,val){
+
+if(!el) return;
+
+el.focus();
+el.value=val;
+
+[
+'focus','keydown','keypress',
+'input','keyup','change','blur'
+].forEach(e=>{
+el.dispatchEvent(new Event(e,{bubbles:true}));
+});
+
+}
+
+function autoLogin(){
+
+hubLog("🔑 Đang thử auto login...");
+
+const user=document.querySelector(
+'input[type="text"],#username,input[name="username"]'
+);
+
+const pass=document.querySelector(
+'input[type="password"],#password'
+);
+
+const btn=document.querySelector(
+'button[type="submit"],.btn-login'
+);
+
+if(!user||!pass){
+
+hubLog("⚠ Không phát hiện form login","#f38ba8");
+return;
+
+}
+
+const acc=accounts[0];
+
+deepFill(user,acc.u);
+deepFill(pass,acc.p);
+
+setTimeout(()=>{
+
+btn?.click();
+
+hubLog("🚀 Đã gửi yêu cầu login","#a6e3a1");
+
+},600);
+
+}
+
+//////////////////////////////////////////////////
+// SCAN LESSON
 //////////////////////////////////////////////////
 
 function startScan(){
 
-const box=document.getElementById("jumpBox");
-if(!box) return;
+hubLog("🔍 Đang quét bài học...");
 
 const lessons=new Set();
 
@@ -265,7 +259,6 @@ if(!txt) return;
 
 if(
 txt.includes("Chưa làm")||
-txt.includes("chưa làm")||
 txt.includes("Incomplete")||
 txt.includes("0%")
 ){
@@ -282,26 +275,17 @@ render();
 
 function render(){
 
-if(tickerRunning) return;
-
-box.innerHTML="";
-
 if(lessons.size===0){
 
-box.innerHTML="<span style='color:#f9e2af'>Không phát hiện bài thiếu</span>";
+hubLog("✔ Không phát hiện bài thiếu","#a6e3a1");
 return;
 
 }
 
+hubLog("⚠ Phát hiện "+lessons.size+" bài chưa làm","#f38ba8");
+
 lessons.forEach(t=>{
-
-const line=document.createElement("div");
-
-line.textContent="• "+t;
-line.style.color="#f38ba8";
-
-box.appendChild(line);
-
+hubLog("• "+t,"#f38ba8");
 });
 
 }
@@ -333,6 +317,8 @@ if(v.playbackRate!==currentSpeed)
 v.playbackRate=currentSpeed;
 
 if(v.ended){
+
+hubLog("⏭ Video kết thúc → sang bài tiếp");
 
 const next=
 document.querySelector(".btn-next")||
@@ -373,11 +359,17 @@ function start(){
 
 createPanel();
 
+hubLog("⚡ Danhvux Hub khởi động...","#a6e3a1");
+
+setTimeout(()=>hubLog("🎬 Kiểm tra video..."),800);
+
+setTimeout(startScan,1200);
+
+setTimeout(autoLogin,2000);
+
 setInterval(videoLoop,1000);
 
-setTimeout(welcomeTicker,800);
-
-setTimeout(autoLogin,1500);
+hubLog("✅ Hub sẵn sàng","#a6e3a1");
 
 }
 
