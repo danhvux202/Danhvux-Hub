@@ -76,6 +76,7 @@ document.body.appendChild(panel);
 document.getElementById("speedRange").oninput=e=>{
 
 speed=e.target.value;
+
 document.getElementById("speedTxt").innerText="x"+speed;
 
 const v=document.querySelector("video");
@@ -145,7 +146,7 @@ window.location.href=unique[0].link;
 }
 
 //////////////////////////////////////////////////
-// VIDEO AUTO
+// VIDEO CONTROL
 //////////////////////////////////////////////////
 
 setInterval(()=>{
@@ -180,9 +181,7 @@ box.id="musicBox";
 box.innerHTML=`
 
 <div id="vinyl">
-
 <div class="label"></div>
-
 </div>
 
 <div id="musicBanner">🎵 Chưa phát nhạc</div>
@@ -198,7 +197,7 @@ box.innerHTML=`
 
 </div>
 
-<iframe id="musicFrame"></iframe>
+<iframe id="musicFrame" allow="autoplay"></iframe>
 
 <style>
 
@@ -214,46 +213,34 @@ font-family:sans-serif;
 }
 
 #vinyl{
-
 width:90px;
 height:90px;
 border-radius:50%;
 background:
-radial-gradient(circle at center,#000 35%,#111 36%,#000 40%,#111 41%,#000 45%);
-
-box-shadow:
-0 0 8px #000,
-inset 0 0 15px rgba(255,255,255,0.1);
-
+radial-gradient(circle,#000 35%,#111 36%,#000 40%,#111 41%,#000 45%);
+box-shadow:0 0 8px #000,inset 0 0 15px rgba(255,255,255,.1);
 position:relative;
-
 animation:spin 2.5s linear infinite;
 animation-play-state:paused;
-
 cursor:pointer;
-
 }
 
 #vinyl::before{
-
 content:"";
 position:absolute;
 inset:0;
 border-radius:50%;
-
 background:
 repeating-radial-gradient(
 circle,
-rgba(255,255,255,0.04) 0px,
-rgba(255,255,255,0.04) 1px,
+rgba(255,255,255,.04) 0px,
+rgba(255,255,255,.04) 1px,
 transparent 2px,
 transparent 4px
 );
-
 }
 
 .label{
-
 position:absolute;
 width:24px;
 height:24px;
@@ -262,12 +249,10 @@ border-radius:50%;
 top:50%;
 left:50%;
 transform:translate(-50%,-50%);
-box-shadow:0 0 6px rgba(0,0,0,.8);
-
 }
 
 @keyframes spin{
-from{transform:rotate(0deg)}
+from{transform:rotate(0)}
 to{transform:rotate(360deg)}
 }
 
@@ -357,6 +342,7 @@ document.getElementById("stopBtn").onclick=()=>{
 
 frame.src="";
 vinyl.style.animationPlayState="paused";
+
 banner.innerText="⏹ Đã dừng";
 
 };
@@ -375,29 +361,29 @@ banner.innerText="🎶 Đang phát nhạc";
 }
 
 //////////////////////////////////////////////////
-// MUSIC LINK
+// FIX YOUTUBE LINK
 //////////////////////////////////////////////////
 
 function convertMusic(url){
 
-if(url.includes("youtube")||url.includes("youtu.be")){
+let id="";
 
-let id=url.split("v=")[1];
-if(id) id=id.split("&")[0];
-
-if(!id && url.includes("youtu.be/"))
-id=url.split("youtu.be/")[1];
-
-return `https://www.youtube.com/embed/${id}?autoplay=1`;
-
+if(url.includes("watch?v=")){
+id=url.split("watch?v=")[1].split("&")[0];
 }
 
-return url;
+else if(url.includes("youtu.be/")){
+id=url.split("youtu.be/")[1].split("?")[0];
+}
+
+if(!id) return "";
+
+return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1`;
 
 }
 
 //////////////////////////////////////////////////
-// START
+// START HUB
 //////////////////////////////////////////////////
 
 function startHub(){
