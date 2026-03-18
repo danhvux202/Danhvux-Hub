@@ -109,7 +109,7 @@
         panel.innerHTML = `
             <div class="header"><div class="title">Danhvux Panel</div><div class="dots"><div class="dot red"></div><div class="dot yel"></div><div class="dot grn"></div></div></div>
             <div class="tabs">
-                <div class="tab active" data-idx="0">MAIN</div><div class="tab" data-idx="1">VIDEO</div><div class="tab" data-idx="2">APPS</div><div class="tab" data-idx="3">SET</div>
+                <div class="tab active" data-idx="0">MAIN</div><div class="tab" data-idx="1">VIDEO</div><div class="tab" data-idx="2">APPS</div><div class="tab" data-idx="3">SETTING</div>
                 <div class="tab-indicator" id="indicator"></div>
             </div>
             <div class="content-view">
