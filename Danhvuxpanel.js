@@ -33,7 +33,7 @@
     // --- GIỮ NGUYÊN TOÀN BỘ LOGIC CỦA BẠN ---
     let uiWidth = _GM_getValue('ui_width', 320);
     let uiColor = _GM_getValue('ui_theme_color', '#ffea00');
-    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzqdfX2dV...'; // Thay webhook của bạn
+    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV'; // Thay webhook của bạn
 
     _GM_addStyle(`
         #danhvux-panel {
