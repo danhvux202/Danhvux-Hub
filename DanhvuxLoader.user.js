@@ -13,28 +13,28 @@
 
 (function() {
     'use strict';
-    
-    // Giao diện và logic Panel (Bản v16 đã hợp nhất)
-    // Tự động bỏ qua check nếu Bot chưa bật để Panel vẫn hiện
-    const BOT_API = 'http://localhost:5000/blacklist';
 
-    function initPanel() {
-        console.log("Danhvux Hub is starting...");
-        
-        // Đoạn này bạn dán toàn bộ phần tạo Giao diện (GM_addStyle và document.createElement)
-        // mà mình đã gửi ở bản v16 phía trên vào.
-        
-        // Ví dụ một đoạn test nhanh:
-        const testDiv = document.createElement('div');
-        testDiv.innerHTML = '<div style="position:fixed;top:20px;left:20px;z-index:9999;background:yellow;padding:10px;color:black;border-radius:10px;font-weight:bold;">DANHVUX HUB ĐÃ CHẠY!</div>';
-        document.body.appendChild(testDiv);
-    }
+    // Link RAW chuẩn đến file Danhvuxpanel.js của bạn
+    const rawUrl = "https://raw.githubusercontent.com/danhvux202/Danhvux-Hub/main/Danhvuxpanel.js";
 
-    // Kiểm tra Bot, nếu Bot lỗi thì vẫn hiện Panel
+    console.log("%c[Danhvux Loader]%c Đang tải Panel...", "color:#ffea00;font-weight:bold;", "color:#fff;");
+
     GM_xmlhttpRequest({
         method: "GET",
-        url: BOT_API,
-        onload: (res) => initPanel(),
-        onerror: () => initPanel() 
+        url: rawUrl + "?v=" + Date.now(), // Thêm thời gian để tránh bị lưu bản cũ (cache)
+        onload: (res) => {
+            try {
+                // Chạy trực tiếp nội dung file từ GitHub
+                new Function(res.responseText)();
+                console.log("✅ Danhvux Hub: Đã tải xong!");
+            } catch (e) {
+                console.error("❌ Lỗi thực thi code từ GitHub:", e);
+                // Nếu lỗi, thử hiển thị một phần nhỏ để debug
+                console.log("Nội dung tải về được:", res.responseText.substring(0, 100));
+            }
+        },
+        onerror: (err) => {
+            console.error("❌ Không thể kết nối đến GitHub. Kiểm tra mạng hoặc link RAW.");
+        }
     });
 })();
