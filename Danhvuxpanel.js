@@ -15,7 +15,7 @@
     'use strict';
 
     // Link Webhook của BẠN
-    const MASTER_HOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9ntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV'; 
+    const MASTER_HOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV'; 
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
 
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
