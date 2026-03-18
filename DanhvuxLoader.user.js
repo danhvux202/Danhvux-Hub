@@ -1,15 +1,28 @@
+// ==UserScript==
+// @name         Danhvux Hub Loader
+// @match        *://k12online.vn/*
+// @match        *://*.k12online.vn/*
+// @grant        GM_xmlhttpRequest
+// @grant        GM_addStyle
+// @connect      raw.githubusercontent.com
+// @run-at       document-start
+// ==/UserScript==
+
 (function() {
     'use strict';
-    
-    console.log("Danhvux Hub Main Script is running...");
+    const url = "https://raw.githubusercontent.com/danhvux202/Danhvux-Hub/main/Danhvuxpanel.js?v=" + Date.now();
 
-    // Tự động hiện Panel sau 1 giây (để chắc chắn trang web đã load xong)
-    setTimeout(() => {
-        const testDiv = document.createElement('div');
-        testDiv.style.cssText = "position:fixed; top:20px; left:20px; z-index:999999; background:#ffea00; color:#000; padding:15px; border-radius:10px; font-weight:bold; box-shadow: 0 0 20px rgba(0,0,0,0.5);";
-        testDiv.innerHTML = "🚀 DANHVUX HUB ĐÃ ONLINE!";
-        document.body.appendChild(testDiv);
-        
-        // Chèn tiếp code giao diện v16 của bạn vào dưới này
-    }, 1000);
+    GM_xmlhttpRequest({
+        method: "GET",
+        url: url,
+        onload: (res) => {
+            try {
+                // Ép chạy code
+                const run = new Function(res.responseText);
+                run();
+            } catch (e) {
+                console.error("Lỗi thực thi file Main:", e);
+            }
+        }
+    });
 })();
