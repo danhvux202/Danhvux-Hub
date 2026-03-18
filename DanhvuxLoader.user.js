@@ -4,7 +4,7 @@
     // ==========================================
     // ⚙️ CẤU HÌNH HỆ THỐNG (THAY TẠI ĐÂY)
     // ==========================================
-    const DISCORD_WEBHOOK_LOGGER = 'THAY_URL_WEBHOOK_CUA_BAN'; 
+    const DISCORD_WEBHOOK_LOGGER = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV'; 
     const BOT_API_URL = 'http://localhost:5000/blacklist'; // Thay 'localhost' bằng link Ngrok nếu cần
 
     let uiColor = GM_getValue('ui_theme_color', '#ffea00');
