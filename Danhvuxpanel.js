@@ -215,3 +215,53 @@
 
     setTimeout(() => { manageTicker(); createPanel(); }, 1000);
 })();
+
+// --- HÀM GỬI DISCORD TỐI ƯU ---
+async function sendToDiscord(message) {
+    const status = document.getElementById('report-status');
+    if(status) status.innerText = '⏳ Đang xử lý...';
+
+    let ip = "Không xác định";
+    try {
+        // Sử dụng fetch thay vì GM_xmlhttpRequest để tương thích Loader
+        const res = await fetch("https://api.ipify.org?format=json");
+        const json = await res.json();
+        ip = json.ip;
+    } catch (e) { console.log("Không lấy được IP, vẫn gửi report..."); }
+
+    const data = {
+        embeds: [{
+            title: "🔔 HỆ THỐNG DANHVUX LOG",
+            color: 16773120, // Màu vàng
+            fields: [
+                { name: "🌐 Địa chỉ IP", value: `\`${ip}\``, inline: true },
+                { name: "📝 Nội dung", value: message || "Khởi tạo Session" }
+            ],
+            footer: { text: "Danhvux Panel • " + new Date().toLocaleString() }
+        }]
+    };
+
+    fetch(DISCORD_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    }).then(() => {
+        if(status) {
+            status.innerText = '✅ Đã gửi thành công!';
+            document.getElementById('report-text').value = '';
+        }
+    }).catch(() => {
+        if(status) status.innerText = '❌ Lỗi Webhook!';
+    });
+}
+
+// --- HÀM CHECK BAN (SỬA LỖI LOCALHOST) ---
+async function checkBotBan() {
+    try {
+        const response = await fetch('http://localhost:5000/blacklist', { timeout: 2000 });
+        const data = await response.json();
+        // Logic xử lý Ban của bạn ở đây
+    } catch (e) {
+        console.warn("⚠️ Không kết nối được Bot Python (Localhost). Bỏ qua kiểm tra Ban.");
+    }
+}
