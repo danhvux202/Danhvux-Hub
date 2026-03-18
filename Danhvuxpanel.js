@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Danhvux Panel (Privacy Report + Shortcut + AntiBot)
 // @namespace    http://tampermonkey.net/
-// @version      7.9.3
-// @description  Báo cáo chỉ gửi IP/Nội dung + Phím tắt Alt+Z ẩn hiện + AntiBot IP
+// @version      7.9.4
+// @description  Báo cáo chỉ gửi IP/Nội dung + Phím tắt Alt+Z ẩn hiện + AntiBot IP FIXED
 // @author       Danhvux
 // @match        *://k12online.vn/*
 // @match        *://*.k12online.vn/*
@@ -18,10 +18,90 @@
 
     let uiWidth = GM_getValue('ui_width', 320);
     let uiColor = GM_getValue('ui_theme_color', '#ffea00');
-    // THAY WEBHOOK CỦA BẠN VÀO ĐÂY
     const DISCORD_WEBHOOK = 'THAY_URL_WEBHOOK_CUA_BAN_TAI_DAY';
-    // API CHECK BLACKLIST IP
     const BLACKLIST_API = 'http://localhost:5000/blacklist';
+    let panelCreated = false;
+    let isIPBanned = false;
+
+    // CACHE KIỂM TRA IP (24h)
+    function getCachedIPStatus() {
+        const cache = GM_getValue('ip_blacklist_cache', {});
+        const now = Date.now();
+        if (cache.timestamp && (now - cache.timestamp) < 24*60*60*1000) {
+            return cache.banned || false;
+        }
+        return null;
+    }
+
+    function setCachedIPStatus(banned) {
+        GM_setValue('ip_blacklist_cache', {
+            banned: banned,
+            timestamp: Date.now(),
+            checkedAt: new Date().toLocaleString('vi-VN')
+        });
+    }
+
+    // KIỂM TRA BLACKLIST KHÔNG BLOCKING
+    async function checkBlacklistAsync() {
+        const cached = getCachedIPStatus();
+        if (cached !== null) {
+            console.log('📋 Sử dụng cache blacklist:', cached ? 'BANNED' : 'OK');
+            return cached;
+        }
+
+        try {
+            console.log('🔍 Đang kiểm tra blacklist...');
+            
+            const ipResponse = await new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: "GET",
+                    url: "https://api.ipify.org?format=json",
+                    timeout: 5000,
+                    onload: (res) => {
+                        try {
+                            resolve(JSON.parse(res.responseText));
+                        } catch {
+                            reject('Parse IP failed');
+                        }
+                    },
+                    onerror: reject,
+                    ontimeout: reject
+                });
+            });
+
+            console.log('🌐 IP của bạn:', ipResponse.ip);
+
+            const blacklistResponse = await new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: "GET",
+                    url: `${BLACKLIST_API}?ip=${ipResponse.ip}`,
+                    timeout: 5000,
+                    onload: (res) => {
+                        try {
+                            const data = JSON.parse(res.responseText);
+                            resolve({ banned: !!data.banned, reason: data.reason || 'Không rõ' });
+                        } catch {
+                            resolve({ banned: false });
+                        }
+                    },
+                    onerror: () => resolve({ banned: false }),
+                    ontimeout: () => resolve({ banned: false })
+                });
+            });
+
+            const isBanned = blacklistResponse.banned;
+            setCachedIPStatus(isBanned);
+            
+            console.log('✅ Blacklist check:', isBanned ? 'BANNED' : 'OK');
+            if (isBanned) console.log('❌ Lý do:', blacklistResponse.reason);
+            
+            return isBanned;
+        } catch (e) {
+            console.log('⚠️ Blacklist check failed, cho phép:', e);
+            setCachedIPStatus(false);
+            return false;
+        }
+    }
 
     GM_addStyle(`
         #danhvux-panel {
@@ -39,7 +119,7 @@
         .dot { width: 12px; height: 12px; border-radius: 50%; }
         .close-dot { background: #ff5f57; } .min-dot { background: #febc2e; } .max-dot { background: #28c840; }
 
-        .tab-nav { display: flex; gap: 18px; padding: 0 20px; margin-top: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); position: relative; }
+        .tab-nav { display: flex; gap: 18px; padding: 0 20px; margin-top: 15px; border-bottom: 1px solid rgba(255,255,0.05); position: relative; }
         .tab-btn { background: none; border: none; color: #808080; cursor: pointer; font-size: 11px; font-weight: 700; padding: 12px 0; text-transform: uppercase; transition: 0.3s; }
         .tab-btn.active { color: #fff; }
         #tab-indicator { position: absolute; bottom: -1px; height: 2px; background: ${uiColor}; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 8px ${uiColor}; }
@@ -63,8 +143,6 @@
         .ticker-text { display: inline-block; padding-left: 100%; animation: ticker-move 18s linear forwards; }
         @keyframes ticker-move { to { transform: translateX(-100%); } }
 
-        .lesson-card { background: rgba(255,255,255,0.03); padding: 12px; border-radius: 10px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; font-size: 12px; cursor: pointer; }
-
         .ban-notice { 
             background: rgba(255,68,68,0.9) !important; 
             color: #fff !important; 
@@ -74,45 +152,12 @@
             font-size: 14px;
         }
         .ban-notice::before { content: "🚫 "; font-size: 20px; display: block; margin-bottom: 10px; }
+        .status-indicator { position: absolute; top: 10px; right: 10px; font-size: 10px; padding: 4px 8px; border-radius: 12px; font-weight: 700; }
+        .status-ok { background: rgba(40,200,64,0.2); color: #28c840; }
+        .status-banned { background: rgba(255,68,68,0.3); color: #ff4444; }
     `);
 
-    // KIỂM TRA IP CÓ BỊ BAN KHÔNG
-    async function checkBlacklist() {
-        try {
-            const ipResponse = await new Promise(resolve => {
-                GM_xmlhttpRequest({
-                    method: "GET",
-                    url: "https://api.ipify.org?format=json",
-                    onload: (res) => resolve(JSON.parse(res.responseText))
-                });
-            });
-
-            const blacklistResponse = await new Promise((resolve, reject) => {
-                GM_xmlhttpRequest({
-                    method: "GET",
-                    url: `${BLACKLIST_API}?ip=${ipResponse.ip}`,
-                    onload: (res) => {
-                        try {
-                            resolve(JSON.parse(res.responseText));
-                        } catch {
-                            resolve({ banned: false });
-                        }
-                    },
-                    onerror: reject
-                });
-            });
-
-            if (blacklistResponse.banned) {
-                console.log(`🚫 IP ${ipResponse.ip} bị blacklist!`);
-                return true;
-            }
-        } catch (e) {
-            console.log('⚠️ Không thể kiểm tra blacklist:', e);
-        }
-        return false;
-    }
-
-    // HÀM LẤY IP VÀ GỬI DISCORD
+    // HÀM SEND DISCORD (giữ nguyên)
     async function sendToDiscord(message) {
         const status = document.getElementById('report-status');
         status.innerText = '⏳ Đang lấy địa chỉ mạng...';
@@ -134,7 +179,7 @@
                         { name: "🌐 Địa chỉ IP", value: `\`${ipResponse.ip}\``, inline: true },
                         { name: "📝 Nội dung", value: message }
                     ],
-                    footer: { text: "Danhvux Panel v7.9.3 • AntiBot • " + new Date().toLocaleString('vi-VN') }
+                    footer: { text: "Danhvux Panel v7.9.4 • AntiBot • " + new Date().toLocaleString('vi-VN') }
                 }]
             };
 
@@ -153,20 +198,26 @@
         }
     }
 
-    function createPanel(isBanned = false) {
+    // TẠO PANEL CHÍNH
+    function createPanel() {
+        if (panelCreated) return;
+        panelCreated = true;
+
         const panel = document.createElement('div');
         panel.id = 'danhvux-panel';
-        if (isBanned) {
+        
+        if (isIPBanned) {
             panel.classList.add('banned');
             panel.innerHTML = `
                 <div id="k12-header" style="background: rgba(255,0,0,0.2);">
                     <div style="font-size: 20px; font-weight: 900; letter-spacing: -0.5px; color: #ffdddd;">🚫 IP BỊ BAN</div>
+                    <div class="status-indicator status-banned">BANNED</div>
                 </div>
                 <div id="main-tab" class="tab-content active ban-notice">
                     <div>IP của bạn đã bị đưa vào danh sách đen!</div>
                     <div style="font-size: 12px; opacity: 0.9; margin-top: 10px;">
                         Vui lòng liên hệ admin để được gỡ bỏ.<br>
-                        <b>Thời gian ban:</b> ${new Date().toLocaleString('vi-VN')}
+                        <b>Thời gian kiểm tra:</b> ${new Date().toLocaleString('vi-VN')}
                     </div>
                 </div>
             `;
@@ -174,8 +225,9 @@
             panel.innerHTML = `
                 <div id="k12-header">
                     <div style="font-size: 20px; font-weight: 900; letter-spacing: -0.5px;">Danhvux Panel</div>
+                    <div class="status-indicator status-ok">✓ ANTI-BOT OK</div>
                     <div class="mac-dots">
-                        <div class="dot close-dot" onclick="this.closest('#danhvux-panel').classList.add('hidden')"></div>
+                        <div class="dot close-dot" onclick="document.getElementById('danhvux-panel').classList.add('hidden')"></div>
                         <div class="dot min-dot"></div><div class="dot max-dot"></div>
                     </div>
                     <div class="tab-nav">
@@ -186,15 +238,15 @@
                         <div id="tab-indicator"></div>
                     </div>
                 </div>
+                <!-- Các tab content giữ nguyên như cũ -->
                 <div id="main-tab" class="tab-content active">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span class="label-bright">Tốc độ phát</span>
                         <b id="speedValue" style="color:${uiColor}; font-size:14px;">x1</b>
                     </div>
                     <input type="range" id="speedSlider" min="1" max="16" step="0.5" value="1">
-                    <div id="main-lesson-list"></div>
-                    <button class="auto-login-btn" id="runAutoLogin" style="margin-top:10px; background:#e0e0e0; color:#111;">🪄 ĐĂNG NHẬP NHANH</button>
-                    <p style="font-size: 9px; color: #555; text-align: center; margin-top: 10px;">Mẹo: Nhấn <b>Alt + Z</b> để ẩn/hiện nhanh</p>
+                    <button class="auto-login-btn" id="runAutoLogin" style="margin:10px 0;">🪄 ĐĂNG NHẬP NHANH</button>
+                    <p style="font-size: 9px; color: #555; text-align: center;">Mẹo: <b>Alt + Z</b> ẩn/hiện | <b>F5</b> refresh blacklist</p>
                 </div>
                 <div id="apps-tab" class="tab-content">
                     <div class="apps-grid">
@@ -208,68 +260,39 @@
                 </div>
                 <div id="report-tab" class="tab-content">
                     <span class="label-bright">Gửi báo cáo bảo mật</span>
-                    <textarea id="report-text" placeholder="Nhập lỗi hoặc ý kiến tại đây..."></textarea>
-                    <button class="auto-login-btn" id="sendReport">Gửi đi</button>
+                    <textarea id="report-text" placeholder="Nhập lỗi hoặc ý kiến..."></textarea>
+                    <button class="auto-login-btn" id="sendReport">🚀 Gửi đi</button>
                     <p id="report-status" style="font-size:10px; text-align:center; margin-top:10px; color:#888;"></p>
                 </div>
                 <div id="settings-tab" class="tab-content">
                     <span class="label-bright">Độ rộng: <b id="widthVal">${uiWidth}px</b></span>
                     <input type="range" id="setWidth" min="280" max="500" value="${uiWidth}">
                     <span class="label-bright">Màu chủ đạo</span>
-                    <input type="color" id="setColor" value="${uiColor}" style="width:100%; height:40px; border:none; background:none; cursor:pointer;">
+                    <input type="color" id="setColor" value="${uiColor}" style="width:100%; height:40px;">
+                    <button class="auto-login-btn" id="clearCache" style="background:#ff6b6b; margin-top:15px;">🗑️ Xóa cache IP</button>
                     <hr style="border:none; border-top:1px solid rgba(255,255,255,0.05); margin:20px 0;">
                     <input type="text" id="k12_u" placeholder="Tên đăng nhập" value="${GM_getValue('k12_username','')}">
                     <input type="password" id="k12_p" placeholder="Mật khẩu" value="${GM_getValue('k12_password','')}">
-                    <button class="auto-login-btn" id="saveSet">Lưu cài đặt</button>
+                    <button class="auto-login-btn" id="saveSet">💾 Lưu cài đặt</button>
                 </div>
             `;
         }
+        
         document.body.appendChild(panel);
 
-        if (isBanned) return; // Không attach event nếu bị ban
+        // ATTACH EVENTS (chỉ khi không bị ban)
+        if (!isIPBanned) attachPanelEvents(panel);
+    }
 
-        // Phím tắt Alt + Z
+    function attachPanelEvents(panel) {
+        // Phím tắt
         window.addEventListener('keydown', (e) => {
-            if (e.altKey && e.code === 'KeyZ') {
-                panel.classList.toggle('hidden');
-            }
+            if (e.altKey && e.code === 'KeyZ') panel.classList.toggle('hidden');
+            if (e.code === 'F5') { location.reload(); } // Refresh blacklist
         });
 
+        // Tab switching
         const indicator = document.getElementById('tab-indicator');
-        const updateIndi = (btn) => { indicator.style.width = btn.offsetWidth + 'px'; indicator.style.left = btn.offsetLeft + 'px'; };
-        setTimeout(() => updateIndi(document.querySelector('.tab-btn.active')), 300);
-
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.onclick = () => {
-                const target = document.getElementById(btn.dataset.target);
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                btn.classList.add('active'); target.classList.add('active');
-                updateIndi(btn);
-            };
-        });
-
-        // Gửi báo cáo
-        document.getElementById('sendReport').onclick = function() {
-            const msg = document.getElementById('report-text').value;
-            if(!msg.trim()) return;
-            sendToDiscord(msg);
-        };
-
-        // Kéo thả & Resize
-        let drag = false, x, y;
-        document.getElementById('k12-header').onmousedown = (e) => { if(e.target.tagName !== 'BUTTON' && e.target.type !== 'range' && e.target.tagName !== 'TEXTAREA') { drag = true; x = e.clientX - panel.offsetLeft; y = e.clientY - panel.offsetTop; } };
-        document.onmousemove = (e) => { if(drag) { panel.style.left = (e.clientX - x) + 'px'; panel.style.top = (e.clientY - y) + 'px'; panel.style.right = 'auto'; } };
-        document.onmouseup = () => drag = false;
-
-        document.getElementById('speedSlider').oninput = (e) => {
-            document.getElementById('speedValue').innerText = 'x' + e.target.value;
-            if(document.querySelector('video')) document.querySelector('video').playbackRate = e.target.value;
-        };
-
-        const sliderW = document.getElementById('setWidth');
-        sliderW.oninput = () => { panel.style.width = sliderW.value + 'px'; document.getElementById('widthVal').innerText = sliderW.value + 'px'; };
-
-        document.getElementById('saveSet').onclick = () => {
-            GM_setValue('ui_width', sliderW.value);
-            GM_setValue('ui_theme_color', document.getElementById('setColor
+                document.querySelectorAll('.tab-btn').forEach
