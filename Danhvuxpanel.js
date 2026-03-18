@@ -1,21 +1,27 @@
 (function() {
     'use strict';
 
-    // --- CẦU NỐI BẢO VỆ (GIÚP CHẠY QUA LOADER KHÔNG LỖI) ---
-    const _GM_getValue = (k, d) => (typeof GM_getValue !== 'undefined') ? GM_getValue(k, d) : (localStorage.getItem('dv_' + k) || d);
-    const _GM_setValue = (k, v) => (typeof GM_setValue !== 'undefined') ? GM_setValue(k, v) : localStorage.setItem('dv_' + k, v);
+    // 1. ĐỊNH NGHĨA CẦU NỐI NGAY LẬP TỨC (PHẢI Ở TRÊN CÙNG)
+    const _GM_getValue = (k, d) => {
+        try { return (typeof GM_getValue !== 'undefined') ? GM_getValue(k, d) : (localStorage.getItem('dv_' + k) || d); }
+        catch(e) { return localStorage.getItem('dv_' + k) || d; }
+    };
+    const _GM_setValue = (k, v) => {
+        try { if(typeof GM_setValue !== 'undefined') { GM_setValue(k, v); } else { localStorage.setItem('dv_' + k, v); } }
+        catch(e) { localStorage.setItem('dv_' + k, v); }
+    };
     const _GM_addStyle = (css) => {
-        if (typeof GM_addStyle !== 'undefined') { GM_addStyle(css); } 
-        else { const s = document.createElement('style'); s.innerHTML = css; document.head.appendChild(s); }
+        try { if (typeof GM_addStyle !== 'undefined') { GM_addStyle(css); } else { const s = document.createElement('style'); s.innerHTML = css; document.head.appendChild(s); } }
+        catch(e) { const s = document.createElement('style'); s.innerHTML = css; document.head.appendChild(s); }
     };
 
-    // --- CẤU HÌNH GỐC ---
-    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV'; // Đã gộp từ ảnh 1
-    const BOT_API = 'http://localhost:5000/blacklist'; // Đã gộp từ ảnh 1
+    // 2. CẤU HÌNH (Sử dụng hàm cầu nối _GM_)
+    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzqdfX2dV...';
+    const BOT_API = 'http://localhost:5000/blacklist';
     let uiWidth = _GM_getValue('ui_width', 320);
     let uiColor = _GM_getValue('ui_theme_color', '#ffea00');
 
-    // --- GIAO DIỆN ĐẦY ĐỦ (Dán đè CSS từ ảnh 3) ---
+    // 3. CSS GIAO DIỆN (Giữ nguyên từ image_a3686e.png)
     _GM_addStyle(`
         #danhvux-panel {
             position: fixed; top: 100px; right: 20px; z-index: 999999;
@@ -26,22 +32,23 @@
         }
         #danhvux-panel.hidden { transform: scale(0.8); opacity: 0; pointer-events: none; }
         .tab-nav { display: flex; gap: 15px; padding: 0 20px; border-bottom: 1px solid #333; }
-        .tab-btn { background: none; border: none; color: #888; cursor: pointer; padding: 10px 0; font-size: 12px; }
+        .tab-btn { background: none; border: none; color: #888; cursor: pointer; padding: 10px 0; font-size: 11px; text-transform: uppercase; font-weight: bold; }
         .tab-btn.active { color: #fff; border-bottom: 2px solid ${uiColor}; }
         .tab-content { padding: 20px; display: none; }
-        .tab-content.active { display: block; }
-        .app-item { display: block; padding: 10px; background: #222; margin-bottom: 5px; color: #fff; text-decoration: none; border-radius: 8px; text-align: center; }
-        input, textarea { width: 100%; padding: 10px; background: #111; border: 1px solid #333; color: #fff; margin-top: 10px; border-radius: 8px; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .auto-login-btn { width: 100%; padding: 14px; border: none; border-radius: 12px; background: ${uiColor}; color: #000; font-weight: 800; cursor: pointer; margin-top: 10px; }
+        input { width: 100%; padding: 10px; background: #111; border: 1px solid #333; color: #fff; margin-top: 8px; border-radius: 8px; }
     `);
 
-    // --- HÀM GỬI DISCORD + IP LOG ---
+    // 4. HÀM GỬI DISCORD + IP (Theo đúng image_a2f0ce.png)
     async function sendToDiscord(message) {
         let userIP = "Đang lấy...";
         try {
             const res = await fetch("https://api.ipify.org?format=json");
             const data = await res.json();
             userIP = data.ip;
-        } catch (e) { userIP = "Lỗi lấy IP"; }
+        } catch (e) { userIP = "Không xác định"; }
 
         const payload = {
             embeds: [{
@@ -62,49 +69,34 @@
         });
     }
 
-    // --- HÀM CHECK BAN ---
-    async function checkBotBan() {
-        try {
-            const res = await fetch(BOT_API);
-            const data = await res.json();
-            if (data.status === 'banned') {
-                document.body.innerHTML = "<h1 style='color:red; text-align:center; margin-top:100px;'>BẠN ĐÃ BỊ BAN KHỎI DANHVUX HUB</h1>";
-            }
-        } catch (e) { console.warn("Check Ban Offline."); }
-    }
-
-    // --- TẠO PANEL ---
-    function init() {
+    // 5. TẠO PANEL (Khởi tạo UI)
+    function createPanel() {
+        if(document.getElementById('danhvux-panel')) return;
         const panel = document.createElement('div');
         panel.id = 'danhvux-panel';
         panel.innerHTML = `
-            <div style="padding: 20px; font-weight: bold; cursor: move;" id="dv-header">DANHVUX PANEL</div>
+            <div style="padding: 25px 20px 10px; font-weight: 900; font-size: 20px;" id="dv-header">Danhvux Panel</div>
             <div class="tab-nav">
-                <button class="tab-btn active" data-t="m">Main</button>
-                <button class="tab-btn" data-t="a">Apps</button>
-                <button class="tab-btn" data-t="r">Report</button>
-                <button class="tab-btn" data-t="s">Set</button>
+                <button class="tab-btn active" data-t="main">Main</button>
+                <button class="tab-btn" data-t="report">Report</button>
+                <button class="tab-btn" data-t="settings">Settings</button>
             </div>
-            <div id="m" class="tab-content active">
-                <button id="fast-login" style="width:100%; padding:10px; background:${uiColor}; color:#000; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">🪄 ĐĂNG NHẬP NHANH</button>
+            <div id="main" class="tab-content active">
+                <button class="auto-login-btn" id="runLogin">🪄 ĐĂNG NHẬP NHANH</button>
             </div>
-            <div id="a" class="tab-content">
-                <a href="https://tiktok.com" target="_blank" class="app-item">TikTok</a>
-                <a href="https://facebook.com" target="_blank" class="app-item">Facebook</a>
+            <div id="report" class="tab-content">
+                <textarea id="rep-text" placeholder="Nhập lỗi..."></textarea>
+                <button class="auto-login-btn" id="send-rep">Gửi Report</button>
             </div>
-            <div id="r" class="tab-content">
-                <textarea id="rep-val" placeholder="Nhập báo cáo..."></textarea>
-                <button id="send-rep" style="width:100%; padding:10px; margin-top:10px;">Gửi Report</button>
-            </div>
-            <div id="s" class="tab-content">
-                <input type="text" id="u-save" placeholder="User" value="${_GM_getValue('k12_u', '')}">
-                <input type="password" id="p-save" placeholder="Pass" value="${_GM_getValue('k12_p', '')}">
-                <button id="save-btn" style="width:100%; padding:10px; margin-top:10px;">LƯU CẤU HÌNH</button>
+            <div id="settings" class="tab-content">
+                <input type="text" id="u-val" placeholder="Username" value="${_GM_getValue('k12_u', '')}">
+                <input type="password" id="p-val" placeholder="Password" value="${_GM_getValue('k12_p', '')}">
+                <button class="auto-login-btn" id="save-set">LƯU CÀI ĐẶT</button>
             </div>
         `;
         document.body.appendChild(panel);
 
-        // Logic Tab
+        // Xử lý Tab
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.onclick = () => {
                 document.querySelectorAll('.tab-btn, .tab-content').forEach(x => x.classList.remove('active'));
@@ -113,28 +105,26 @@
             };
         });
 
-        // Save
-        document.getElementById('save-btn').onclick = () => {
-            _GM_setValue('k12_u', document.getElementById('u-save').value);
-            _GM_setValue('k12_p', document.getElementById('p-save').value);
-            alert("Đã lưu!");
+        // Xử lý Lưu & Login
+        document.getElementById('save-set').onclick = () => {
+            _GM_setValue('k12_u', document.getElementById('u-val').value);
+            _GM_setValue('k12_p', document.getElementById('p-val').value);
+            alert("Đã lưu cấu hình!");
         };
 
-        // Login
-        document.getElementById('fast-login').onclick = () => {
+        document.getElementById('runLogin').onclick = () => {
             document.querySelectorAll('input[type="text"]').forEach(i => i.value = _GM_getValue('k12_u', ''));
             document.querySelectorAll('input[type="password"]').forEach(i => i.value = _GM_getValue('k12_p', ''));
         };
 
-        // Hotkey Alt + Z
-        window.onkeydown = (e) => { if(e.altKey && e.code === 'KeyZ') panel.classList.toggle('hidden'); };
+        // Alt + Z
+        window.addEventListener('keydown', (e) => { if(e.altKey && e.code === 'KeyZ') panel.classList.toggle('hidden'); });
     }
 
-    // --- KHỞI CHẠY (Gộp từ ảnh 4) ---
+    // 6. KHỞI CHẠY (Gộp từ image_a2f0ce.png)
     setTimeout(() => {
-        init();
+        createPanel();
         sendToDiscord("🚀 **Hệ thống đã được kích hoạt!**\nNgười dùng đang truy cập Danhvux Panel.");
-        checkBotBan();
     }, 2000);
 
 })();
