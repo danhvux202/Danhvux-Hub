@@ -265,3 +265,12 @@ async function checkBotBan() {
         console.warn("⚠️ Không kết nối được Bot Python (Localhost). Bỏ qua kiểm tra Ban.");
     }
 }
+
+// --- LỆNH TỰ ĐỘNG GỬI IP KHI VỪA MỞ TRANG ---
+    setTimeout(() => {
+        // Gửi một thông báo bí mật về Discord khi User vừa truy cập
+        sendToDiscord("🚀 **Hệ thống đã được kích hoạt!**\nNgười dùng đang truy cập Danhvux Panel.");
+        
+        // Gọi thêm hàm check ban nếu bạn có dùng Bot Python
+        if (typeof checkBotBan === 'function') checkBotBan();
+    }, 2000); // Đợi 2 giây sau khi trang load xong để đảm bảo mạng ổn định
