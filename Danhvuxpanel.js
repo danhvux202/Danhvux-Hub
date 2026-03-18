@@ -7,7 +7,7 @@
     const _GM_addStyle = (css) => { try { if (typeof GM_addStyle !== 'undefined') { GM_addStyle(css); } else { const s = document.createElement('style'); s.innerHTML = css; document.head.appendChild(s); } } catch(e) { const s = document.createElement('style'); s.innerHTML = css; document.head.appendChild(s); } };
 
     // 2. CẤU HÌNH GỐC CỦA DANH
-    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzqdfX2dV...'; // Thay link thật của bạn
+    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV'; // Thay link thật của bạn
     const BOT_API_URL = 'http://127.0.0.1:5000/blacklist';
     let uiWidth = _GM_getValue('ui_width', 320);
     let uiColor = _GM_getValue('ui_theme_color', '#ffea00');
