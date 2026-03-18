@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Danhvux Panel (Fix Loading)
+// @name         Danhvux Panel (Final Fix)
 // @version      12.1.0
 // @match        *://k12online.vn/*
 // @match        *://*.k12online.vn/*
@@ -16,12 +16,12 @@
 (function() {
     'use strict';
 
-    // 1. CẤU HÌNH
-    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV'; 
+    // --- 1. CẤU HÌNH ---
+    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVB7...'; 
     const BOT_API = 'http://127.0.0.1:5000/blacklist';
     let uiColor = GM_getValue('ui_theme_color', '#ffea00');
 
-    // 2. CSS GIAO DIỆN (Đưa lên đầu để load ngay lập tức)
+    // --- 2. CSS GIAO DIỆN ---
     GM_addStyle(`
         #danhvux-panel {
             position: fixed; top: 100px; right: 20px; z-index: 999999;
@@ -41,19 +41,18 @@
         input { width: 100%; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid #444; color: #fff; border-radius: 8px; margin-top: 5px; box-sizing: border-box; }
     `);
 
-    // 3. HÀM GỬI LOG (Chạy ngầm)
-    function sendLog(action, detail = "") {
+    // --- 3. HÀM HỆ THỐNG ---
+    function sendLog(msg) {
         GM_xmlhttpRequest({
             method: "POST",
             url: DISCORD_WEBHOOK,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify({
-                embeds: [{ title: "🚀 LOG: " + action, color: 3447003, description: detail }]
+                embeds: [{ title: "🚀 Danhvux System Log", description: msg, color: 3447003 }]
             })
         });
     }
 
-    // 4. KIỂM TRA BLACKLIST (Chạy song song, không chặn render)
     function runSecurityCheck() {
         GM_xmlhttpRequest({
             method: "GET",
@@ -63,12 +62,12 @@
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: BOT_API,
-                    timeout: 3000,
+                    timeout: 2000,
                     onload: (botRes) => {
                         try {
                             const bannedIPs = JSON.parse(botRes.responseText);
                             if (bannedIPs.includes(ip)) {
-                                document.body.innerHTML = `<h1 style="color:red;text-align:center;margin-top:20%;">🚫 IP ${ip} BỊ CẤM</h1>`;
+                                document.body.innerHTML = `<h1 style="color:red;text-align:center;margin-top:20%;">🚫 IP ${ip} ĐÃ BỊ CẤM</h1>`;
                             }
                         } catch(e) {}
                     }
@@ -77,7 +76,7 @@
         });
     }
 
-    // 5. KHỞI TẠO PANEL (Chạy ngay khi load trang)
+    // --- 4. KHỞI TẠO PANEL ---
     function createPanel() {
         const panel = document.createElement('div');
         panel.id = 'danhvux-panel';
@@ -89,17 +88,17 @@
             </div>
             <div id="m" class="tab-content active">
                 <button class="main-btn" id="btn-login">🪄 ĐĂNG NHẬP NHANH</button>
-                <p style="font-size:10px; color:#888; text-align:center;">Alt + Z để ẩn/hiện</p>
+                <p style="font-size:10px; color:#888; text-align:center; margin-top:10px;">Alt + Z để ẩn/hiện</p>
             </div>
             <div id="s" class="tab-content">
-                <input type="text" id="u" placeholder="Tài khoản" value="${GM_getValue('k12_u','')}">
+                <input type="text" id="u" placeholder="Tên đăng nhập" value="${GM_getValue('k12_u','')}">
                 <input type="password" id="p" placeholder="Mật khẩu" value="${GM_getValue('k12_p','')}">
-                <button class="main-btn" id="btn-save">LƯU THÔNG TIN</button>
+                <button class="main-btn" id="btn-save">LƯU CÀI ĐẶT</button>
             </div>
         `;
         document.body.appendChild(panel);
 
-        // Sự kiện
+        // Click Events
         document.getElementById('btn-login').onclick = () => {
             document.querySelectorAll('input[type="text"]').forEach(i => i.value = GM_getValue('k12_u',''));
             document.querySelectorAll('input[type="password"]').forEach(i => i.value = GM_getValue('k12_p',''));
@@ -108,12 +107,9 @@
         document.getElementById('btn-save').onclick = () => {
             GM_setValue('k12_u', document.getElementById('u').value);
             GM_setValue('k12_p', document.getElementById('p').value);
-            alert("Đã lưu!");
+            alert("Đã lưu thông tin!");
         };
 
-        // Kéo thả & Phím tắt
-        window.onkeydown = (e) => { if(e.altKey && e.code === 'KeyZ') panel.classList.toggle('hidden'); };
-        
         // Tab Switch
         document.querySelectorAll('.tab-btn').forEach(b => {
             b.onclick = () => {
@@ -121,11 +117,16 @@
                 b.classList.add('active'); document.getElementById(b.dataset.t).classList.add('active');
             };
         });
+
+        // Toggle Alt+Z
+        window.onkeydown = (e) => { if(e.altKey && e.code === 'KeyZ') panel.classList.toggle('hidden'); };
     }
 
-    // CHẠY NGAY
+    // --- 5. CHẠY ---
     createPanel();
     runSecurityCheck();
-    sendLog("Panel Started", "Truy cập tại: " + window.location.host);
+    setTimeout(() => {
+        sendLog("🚀 **Hệ thống đã được kích hoạt!**\nNgười dùng đang truy cập Danhvux Panel.");
+    }, 2000);
 
 })();
