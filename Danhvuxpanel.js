@@ -1,94 +1,92 @@
 (function() {
     'use strict';
 
-    // --- CẤU HÌNH HỆ THỐNG ---
-    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzqdfX2dV...'; 
-    const uiColor = '#ffea00'; // Màu vàng chanh huyền thoại của Danh
-
-    // Thay thế GM_addStyle bằng mã chuẩn
+    // 1. TẠO STYLE (Thay cho GM_addStyle)
     const style = document.createElement('style');
     style.innerHTML = `
         @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
         #dv-hub {
             position: fixed; top: 100px; right: 20px; z-index: 999999;
-            width: 320px; background: rgba(25, 25, 30, 0.95);
-            color: #fff; border-radius: 20px; font-family: 'Segoe UI', sans-serif;
-            backdrop-filter: blur(15px); border: 1px solid ${uiColor};
-            animation: float 6s ease-in-out infinite; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            width: 320px; background: rgba(20, 20, 25, 0.98);
+            color: #fff; border-radius: 20px; font-family: sans-serif;
+            backdrop-filter: blur(10px); border: 1px solid #ffea00;
+            animation: float 5s ease-in-out infinite; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
         }
-        .dv-header { padding: 25px 20px 10px; cursor: move; position: relative; }
-        .tab-nav { display: flex; justify-content: space-around; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .tab-btn { background: none; border: none; color: #666; cursor: pointer; font-size: 11px; font-weight: 800; padding: 8px; transition: 0.3s; }
-        .tab-btn.active { color: ${uiColor}; border-bottom: 2px solid ${uiColor}; }
-        .tab-content { padding: 20px; display: none; min-height: 220px; }
+        .dv-header { padding: 20px; cursor: move; border-bottom: 1px solid #333; }
+        .tab-btn { background: none; border: none; color: #777; cursor: pointer; font-weight: bold; padding: 10px; transition: 0.3s; }
+        .tab-btn.active { color: #ffea00; border-bottom: 2px solid #ffea00; }
+        .tab-content { padding: 20px; display: none; }
         .tab-content.active { display: block; }
-        .btn-main { width: 100%; padding: 12px; border: none; border-radius: 12px; background: ${uiColor}; color: #000; font-weight: 900; cursor: pointer; margin-top: 10px; }
+        .btn-main { width: 100%; padding: 12px; border: none; border-radius: 10px; background: #ffea00; color: #000; font-weight: bold; cursor: pointer; margin-top: 10px; }
         .apps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-        .app-item { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #888; font-size: 10px; }
-        .app-icon { width: 42px; height: 42px; background: #222; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 5px; border: 1px solid transparent; }
-        input { width: 100%; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid #333; color: #fff; border-radius: 10px; margin-bottom: 8px; }
+        .app-item { text-decoration: none; color: #fff; font-size: 10px; text-align: center; }
+        input { width: 100%; padding: 8px; margin-bottom: 10px; background: #222; border: 1px solid #444; color: #fff; border-radius: 5px; }
     `;
     document.head.appendChild(style);
 
-    // --- TẠO GIAO DIỆN ---
+    // 2. TẠO GIAO DIỆN
     const panel = document.createElement('div');
     panel.id = 'dv-hub';
     panel.innerHTML = `
-        <div class="dv-header">
-            <div style="text-align:right; font-size:18px; font-weight:900;">DANHVUX <span style="color:${uiColor}">HUB</span></div>
+        <div class="dv-header"><b style="color:#ffea00">DANHVUX</b> HUB v16</div>
+        <div style="display:flex; justify-content: space-around;">
+            <button class="tab-btn active" data-t="tab1">MAIN</button>
+            <button class="tab-btn" data-t="tab2">APPS</button>
+            <button class="tab-btn" data-t="tab3">SET</button>
         </div>
-        <div class="tab-nav">
-            <button class="tab-btn active" data-t="m">MAIN</button>
-            <button class="tab-btn" data-t="a">APPS</button>
-            <button class="tab-btn" data-t="s">SET</button>
+        <div id="tab1" class="tab-content active">
+            <div style="font-size:12px; margin-bottom:10px;">SPEED: <b id="val">x1</b></div>
+            <input type="range" id="speed" min="1" max="16" step="0.5" value="1" style="width:100%">
+            <button class="btn-main" id="autoLogin">🪄 ĐĂNG NHẬP NHANH</button>
         </div>
-        <div id="m" class="tab-content active">
-            <div style="font-size:11px; margin-bottom:5px;">SPEED: <b id="sV" style="color:${uiColor}">x1</b></div>
-            <input type="range" id="sS" min="1" max="16" step="0.5" value="1" style="width:100%; accent-color:${uiColor}">
-            <button class="btn-main" id="btnL">🪄 ĐĂNG NHẬP NHANH</button>
-        </div>
-        <div id="a" class="tab-content">
+        <div id="tab2" class="tab-content">
             <div class="apps-grid">
-                <a href="https://tiktok.com" target="_blank" class="app-item"><div class="app-icon">🎵</div>TikTok</a>
-                <a href="https://chatgpt.com" target="_blank" class="app-item"><div class="app-icon">🤖</div>GPT</a>
-                <a href="https://youtube.com" target="_blank" class="app-item"><div class="app-icon">📺</div>YouTube</a>
-                <a href="https://facebook.com" target="_blank" class="app-item"><div class="app-icon">📘</div>FB</a>
-                <a href="https://messenger.com" target="_blank" class="app-item"><div class="app-icon">💬</div>Mess</a>
-                <a href="https://google.com" target="_blank" class="app-item"><div class="app-icon">🔍</div>Google</a>
+                <a href="https://tiktok.com" target="_blank" class="app-item">🎵<br>TikTok</a>
+                <a href="https://chatgpt.com" target="_blank" class="app-item">🤖<br>GPT</a>
+                <a href="https://facebook.com" target="_blank" class="app-item">📘<br>FB</a>
             </div>
         </div>
-        <div id="s" class="tab-content">
-            <input type="text" id="kU" placeholder="User K12">
-            <input type="password" id="kP" placeholder="Pass K12">
-            <button class="btn-main" id="btnS">LƯU CÀI ĐẶT</button>
+        <div id="tab3" class="tab-content">
+            <input type="text" id="u" placeholder="User">
+            <input type="password" id="p" placeholder="Pass">
+            <button class="btn-main" id="save">LƯU CẤU HÌNH</button>
         </div>
     `;
     document.body.appendChild(panel);
 
-    // --- LOGIC XỬ LÝ (Thay thế GM_getValue bằng localStorage) ---
-    document.querySelectorAll('.tab-btn').forEach(b => {
-        b.onclick = () => {
+    // 3. LOGIC (Dùng localStorage thay cho GM_getValue)
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.onclick = () => {
             document.querySelectorAll('.tab-btn, .tab-content').forEach(x => x.classList.remove('active'));
-            b.classList.add('active');
-            document.getElementById(b.dataset.t).classList.add('active');
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.t).classList.add('active');
         };
     });
 
-    document.getElementById('sS').oninput = (e) => {
-        document.getElementById('sV').innerText = 'x' + e.target.value;
-        if(document.querySelector('video')) document.querySelector('video').playbackRate = e.target.value;
+    document.getElementById('speed').oninput = (e) => {
+        const v = e.target.value;
+        document.getElementById('val').innerText = 'x' + v;
+        if(document.querySelector('video')) document.querySelector('video').playbackRate = v;
     };
 
-    document.getElementById('btnS').onclick = () => {
-        localStorage.setItem('k12_u', document.getElementById('kU').value);
-        localStorage.setItem('k12_p', document.getElementById('kP').value);
-        alert("Đã lưu vào bộ nhớ trình duyệt!");
+    document.getElementById('save').onclick = () => {
+        localStorage.setItem('dv_u', document.getElementById('u').value);
+        localStorage.setItem('dv_p', document.getElementById('p').value);
+        alert("Đã lưu!");
     };
 
-    document.getElementById('btnL').onclick = () => {
-        document.querySelectorAll('input[type="text"]').forEach(i => i.value = localStorage.getItem('k12_u') || '');
-        document.querySelectorAll('input[type="password"]').forEach(i => i.value = localStorage.getItem('k12_p') || '');
+    document.getElementById('autoLogin').onclick = () => {
+        const u = localStorage.getItem('dv_u') || "";
+        const p = localStorage.getItem('dv_p') || "";
+        document.querySelectorAll('input[type="text"]').forEach(i => i.value = u);
+        document.querySelectorAll('input[type="password"]').forEach(i => i.value = p);
     };
 
-    console.log("✅ Danhvux Hub: Đã khôi phục giao diện Main!");
+    // Kéo thả
+    let drag = false, ox, oy;
+    panel.querySelector('.dv-header').onmousedown = (e) => { drag = true; ox = e.clientX - panel.offsetLeft; oy = e.clientY - panel.offsetTop; };
+    document.onmousemove = (e) => { if(drag) { panel.style.left = (e.clientX - ox) + 'px'; panel.style.top = (e.clientY - oy) + 'px'; } };
+    document.onmouseup = () => drag = false;
+
+    console.log("✅ Danhvux Hub: Loaded successfully!");
 })();
