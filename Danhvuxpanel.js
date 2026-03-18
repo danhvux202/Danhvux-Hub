@@ -4,7 +4,7 @@
     let uiWidth = GM_getValue('ui_width', 320);
     let uiColor = GM_getValue('ui_theme_color', '#ffea00');
     // THAY WEBHOOK CỦA BẠN VÀO ĐÂY
-    const DISCORD_WEBHOOK = 'THAY_URL_WEBHOOK_CUA_BAN_TAI_DAY';
+    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV';
 
     GM_addStyle(`
         #danhvux-panel {
