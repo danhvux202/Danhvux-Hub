@@ -156,7 +156,7 @@
             <div class="body-container">
                 <div id="t-main" class="content active">
                     <div class="row-speed"><b>Tốc độ</b><span class="val-right">x<span id="sp-txt">${config.speed}</span></span></div>
-                    <input type="range" id="sp-range" class="slider" min="1" max="100" step="0.5" value="${config.speed}">
+                    <input type="range" id="sp-range" class="slider" min="1" max="500" step="0.5" value="${config.speed}">
                     <button class="btn" id="do-login">🪄 AUTO LOGIN</button>
                 </div>
                 <div id="t-video" class="content">
