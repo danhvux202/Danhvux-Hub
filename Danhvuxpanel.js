@@ -16,7 +16,7 @@
     // === CẤU HÌNH HỆ THỐNG ===
     const WEBHOOK_URL = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV';
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
-    const ADMIN_KEY_SECRET = "DANHVUX2026"; // KEY ĐỂ MỞ TAB ADMIN
+    const ADMIN_KEY_SECRET = "HGXFxIAJDJIASXNAISXASAXZAX"; // KEY ĐỂ MỞ TAB ADMIN
 
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
         mainColor: '#ffea00', width: 320, speed: 1, user: '', pass: '', isDarkMode: true, adminKey: ''
