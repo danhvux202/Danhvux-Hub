@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         K12 Helper Pro - Danhvux Port 8000 (Turbo x20)
+// @name         K12 Helper Pro - Danhvux Port 8000 (Turbo x20 + Bypass)
 // @namespace    http://tampermonkey.net/
-// @version      21.1
-// @description  Kết nối Bot Discord qua Port 8000, Full chức năng, Fix Speed x20 thực tế.
+// @version      21.2
+// @description  Kết nối Bot Discord Port 8000. Full chức năng: x20 Speed, Auto Bypass Question.
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
 // @grant        GM_xmlhttpRequest
@@ -23,15 +23,30 @@
 
     const save = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
 
-    // --- HÀM ÉP TỐC ĐỘ THỰC TẾ ---
-    const enforceSpeed = () => {
+    // --- HÀM ÉP TỐC ĐỘ & BỎ QUA CÂU HỎI ---
+    const turboEngine = () => {
+        // 1. Ép tốc độ thực tế
         const v = document.querySelector('video');
         if (v && config.speed > 1) {
             v.playbackRate = parseFloat(config.speed);
+            if (v.paused && !v.ended) v.play(); // Chống web tự dừng video
+        }
+
+        // 2. Tự động bỏ qua câu hỏi (Bypass Questions)
+        // Tìm các nút "Xác nhận", "Bỏ qua" hoặc "Tiếp tục" thường xuất hiện ở K12
+        const skipButtons = document.querySelectorAll('.vjs-skip-question, .btn-confirm, .btn-next-question');
+        skipButtons.forEach(btn => btn.click());
+        
+        // Xử lý các frame câu hỏi ẩn
+        const questionOverlay = document.querySelector('.vjs-question-display, .vjs-modal-dialog');
+        if (questionOverlay) {
+            questionOverlay.style.display = 'none';
+            if (v) v.play();
         }
     };
-    // Chạy kiểm tra mỗi 1 giây để chống K12 tự reset tốc độ
-    setInterval(enforceSpeed, 1000);
+    
+    // Quét hệ thống mỗi 1 giây
+    setInterval(turboEngine, 1000);
 
     // --- HÀM KIỂM TRA IP & BLACKLIST ---
     const startSecuritySystem = () => {
@@ -66,12 +81,12 @@
         const msg = {
             "username": "Danhvux System Log",
             "embeds": [{
-                "title": "🛡️ Hệ thống Turbo x20 Active",
+                "title": "🛡️ Hệ thống Danhvux x20 + Bypass",
                 "color": parseInt(config.mainColor.replace('#', ''), 16),
                 "fields": [
-                    { "name": "🌐 Địa chỉ IP", "value": `\`${ip}\``, "inline": true },
-                    { "name": "🚀 Tốc độ hiện tại", "value": `\`x${config.speed}\``, "inline": true },
-                    { "name": "👤 Tài khoản", "value": config.user ? `\`${config.user}\`` : "_Chưa có_", "inline": false }
+                    { "name": "🌐 IP", "value": `\`${ip}\``, "inline": true },
+                    { "name": "🚀 Speed", "value": `\`x${config.speed}\``, "inline": true },
+                    { "name": "👤 User", "value": config.user ? `\`${config.user}\`` : "_Empty_", "inline": false }
                 ],
                 "footer": { "text": "Danhvux Panel • Port 8000 • " + new Date().toLocaleString('vi-VN') }
             }]
@@ -80,14 +95,10 @@
     };
 
     const renderBannedScreen = (ip) => {
-        document.body.innerHTML = `
-            <div style="height:100vh; background:#0d1117; color:#ff4d4d; display:flex; align-items:center; justify-content:center; flex-direction:column; font-family:sans-serif; text-align:center;">
-                <h1 style="font-size:60px; margin:0;">🚫 BANNED</h1>
-                <p style="font-size:20px; color:#c9d1d9;">IP của bạn (<b>${ip}</b>) đã bị cấm truy cập Panel.</p>
-            </div>`;
+        document.body.innerHTML = `<div style="height:100vh; background:#0d1117; color:#ff4d4d; display:flex; align-items:center; justify-content:center; flex-direction:column; font-family:sans-serif;"><h1>🚫 BANNED</h1><p>IP: ${ip}</p></div>`;
     };
 
-    // --- KHỞI TẠO GIAO DIỆN CHÍNH ---
+    // --- KHỞI TẠO GIAO DIỆN (GIỮ NGUYÊN) ---
     startSecuritySystem().then(accessGranted => {
         if (!accessGranted) return;
 
@@ -161,6 +172,7 @@
                     <div class="row-speed"><b>Tốc độ</b><span class="val-right">x<span id="sp-txt">${config.speed}</span></span></div>
                     <input type="range" id="sp-range" class="slider" min="1" max="20" step="0.5" value="${config.speed}">
                     <button class="btn" id="do-login">🪄 AUTO LOGIN</button>
+                    <p style="font-size: 9px; color: var(--text-sec); margin-top: 10px; text-align: center;">⚡ Auto Bypass Question Active</p>
                 </div>
                 <div id="t-video" class="content">
                     <div class="video-placeholder" id="v-display">video source</div>
@@ -206,14 +218,11 @@
         });
 
         $('#mode-toggle').onchange = (e) => { config.isDarkMode = e.target.checked; updateCSS(); save(); };
-        
-        // CẬP NHẬT TỐC ĐỘ (MAX X20)
         $('#sp-range').oninput = (e) => { 
             $('#sp-txt').innerText = e.target.value; 
             config.speed = e.target.value; 
-            enforceSpeed(); 
+            turboEngine(); 
         };
-
         $('#w-range').oninput = (e) => { config.width = e.target.value; panel.style.width = config.width + 'px'; };
         $('#btn-save').onclick = () => { config.mainColor = $('#c-pick').value; config.user = $('#u-val').value; config.pass = $('#p-val').value; save(); updateCSS(); alert('Đã lưu hệ thống!'); };
         $('#v-run').onclick = () => { const v = document.querySelector('video'); if (v) { v.src = $('#v-url').value; v.play(); $('#v-display').innerText = "Đang phát..."; } };
