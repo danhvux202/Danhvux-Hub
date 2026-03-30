@@ -1,12 +1,11 @@
 // ==UserScript==
-// @name         K12 Helper Pro - Danhvux Port 8000 (No Admin)
+// @name         K12 Helper Pro - Danhvux Port 8000 (No Discord)
 // @namespace    http://tampermonkey.net/
-// @version      21.7
-// @description  Giữ nguyên 100% bản gốc, nâng cấp x20 thực tế, Bypass Question (bỏ Tab Admin).
+// @version      21.8
+// @description  Giữ nguyên 100% bản gốc, nâng cấp x20 thực tế, Bypass Question (bỏ Tab Admin + Discord).
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
 // @grant        GM_xmlhttpRequest
-// @connect      api.ipify.org
 // @connect      localhost
 // ==/UserScript==
 
@@ -14,7 +13,6 @@
     'use strict';
 
     // === CẤU HÌNH HỆ THỐNG ===
-    const WEBHOOK_URL = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV';
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
 
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
@@ -43,7 +41,6 @@
             .then(res => res.json())
             .then(data => {
                 const userIP = data.ip;
-                sendWebhookReport(userIP);
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: BLACKLIST_API + "?nocache=" + Date.now(),
@@ -61,23 +58,6 @@
             })
             .catch(() => resolve(true));
         });
-    };
-
-    const sendWebhookReport = (ip) => {
-        const msg = {
-            "username": "Danhvux System Log",
-            "embeds": [{
-                "title": "🛡️ Hệ thống đã được kích hoạt",
-                "color": parseInt(config.mainColor.replace('#', ''), 16),
-                "fields": [
-                    { "name": "🌐 Địa chỉ IP", "value": `\`${ip}\``, "inline": true },
-                    { "name": "🚀 Tốc độ", "value": `\`x${config.speed}\``, "inline": true },
-                    { "name": "👤 Tài khoản", "value": config.user ? `\`${config.user}\`` : "_Chưa có_", "inline": false }
-                ],
-                "footer": { "text": "Danhvux Panel • Port 8000 • " + new Date().toLocaleString('vi-VN') }
-            }]
-        };
-        fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(msg) });
     };
 
     const renderBannedScreen = (ip) => {
