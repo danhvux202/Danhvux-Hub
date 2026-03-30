@@ -139,7 +139,7 @@
         showToast('🚫 Bạn đã bị cấm truy cập!', 'error', 6000);
     };
 
-    // --- KHỞI TẠO GIAO DIỆN CHÍNH (GIỮ NGUYÊN 100% STYLE GỐC) ---
+    // --- KHỞI TẠO GIAO DIỆN CHÍNH ---
     startSecuritySystem().then(accessGranted => {
         if (!accessGranted) return;
 
@@ -238,7 +238,7 @@
                     <button class="btn btn-save" id="btn-save">LƯU CÀI ĐẶT</button>
                 </div>
             </div>
-            <div class="footer">DANHVUX • K12 HELPER</div>
+            <div class="footer">DANHVUX • K12 HELPER v21.9</div>
         `;
         document.body.appendChild(panel);
 
@@ -248,6 +248,7 @@
             if (active) panel.style.height = (panel.querySelector('.header').offsetHeight + panel.querySelector('.tabs').offsetHeight + active.scrollHeight + 35) + 'px';
         };
 
+        // Tab switching
         panel.querySelectorAll('.tab').forEach(tab => {
             tab.onclick = () => {
                 panel.querySelectorAll('.tab, .content').forEach(el => el.classList.remove('active'));
@@ -257,24 +258,24 @@
             };
         });
 
+        // Event handlers
         $('#mode-toggle').onchange = (e) => { 
             config.isDarkMode = e.target.checked; 
             updateCSS(); 
             save(); 
-            showToast('🌙 Dark mode đã được ${config.isDarkMode ? 'bật' : 'tắt'}', 'success');
+            showToast(`🌙 Dark mode đã được ${config.isDarkMode ? 'bật' : 'tắt'}`, 'success');
         };
         
         $('#sp-range').oninput = (e) => { 
             $('#sp-txt').innerText = e.target.value; 
-            config.speed = e.target.value; 
+            config.speed = parseFloat(e.target.value); 
             runTurbo(); 
             showToast(`⚡ Tốc độ: x${e.target.value}`, 'info', 2000);
         };
         
         $('#w-range').oninput = (e) => { 
-            config.width = e.target.value; 
+            config.width = parseInt(e.target.value); 
             panel.style.width = config.width + 'px'; 
         };
         
-        $('#btn-save').onclick = () => { 
-           
+        $('#btn-save').onclick = () => {
