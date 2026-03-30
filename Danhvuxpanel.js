@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         K12 Helper Pro - Danhvux Port 8000 (With Toast)
 // @namespace    http://tampermonkey.net/
-// @version      21.9
+// @version      21.9.1
 // @description  Giữ nguyên 100% bản gốc, nâng upgrade x20 thực tế, Bypass Question + Toast Notifications
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
