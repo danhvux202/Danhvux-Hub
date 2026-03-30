@@ -1,6 +1,3 @@
-Đây là code đã được cập nhật với **Toast Notifications** đẹp mắt thay thế `alert()`:
-
-```javascript
 // ==UserScript==
 // @name         K12 Helper Pro - Danhvux Port 8000 (No Discord)
 // @namespace    http://tampermonkey.net/
