@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         K12 Helper Pro - Danhvux Port 8000 (With Toast)
 // @namespace    http://tampermonkey.net/
-// @version      21.9.1
+// @version      21.9
 // @description  Giữ nguyên 100% bản gốc, nâng upgrade x20 thực tế, Bypass Question + Toast Notifications
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
@@ -189,6 +189,30 @@
                 input:checked + .slider-switch { background-color: var(--mc); }
                 input:checked + .slider-switch:before { transform: translateX(20px); }
                 .footer { text-align: center; font-size: 9px; color: var(--text-sec); padding: 10px; }
+                .history-item { 
+                    padding: 10px 12px; 
+                    margin-bottom: 8px; 
+                    background: var(--bg-input); 
+                    border-radius: 8px; 
+                    cursor: pointer; 
+                    border: 1px solid var(--border); 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: space-between; 
+                    transition: 0.2s;
+                }
+                .history-item:hover { border-color: var(--mc); }
+                .history-info { display: flex; align-items: center; gap: 10px; }
+                .history-title { font-weight: 600; font-size: 13px; }
+                .history-progress { 
+                    font-size: 12px; 
+                    padding: 4px 8px; 
+                    border-radius: 6px; 
+                    min-width: 60px;
+                    text-align: center;
+                }
+                .history-progress.completed { background: #27c93f; color: #fff; }
+                .history-progress.incomplete { background: var(--mc); color: #000; }
             `;
         };
         document.head.appendChild(style);
@@ -212,6 +236,15 @@
                     <div class="row-speed"><b>Tốc độ</b><span class="val-right">x<span id="sp-txt">${config.speed}</span></span></div>
                     <input type="range" id="sp-range" class="slider" min="1" max="20" step="0.5" value="${config.speed}">
                     <button class="btn" id="do-login">🪄 AUTO LOGIN</button>
+                    <div style="margin-top: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <b style="font-size: 14px;">📚 Lịch sử bài học</b>
+                            <button id="clear-history" style="padding: 4px 10px; font-size: 11px; background: #ff5f56; color: #fff; border: none; border-radius: 6px; cursor: pointer;">Xóa</button>
+                        </div>
+                        <div id="history-list" style="max-height: 200px; overflow-y: auto;">
+                            <div style="text-align: center; color: var(--text-sec); font-size: 12px; padding: 20px;">Chưa có lịch sử</div>
+                        </div>
+                    </div>
                 </div>
                 <div id="t-video" class="content">
                     <div class="video-placeholder" id="v-display">video source</div>
@@ -254,6 +287,76 @@
             const active = panel.querySelector('.content.active');
             if (active) panel.style.height = (panel.querySelector('.header').offsetHeight + panel.querySelector('.tabs').offsetHeight + active.scrollHeight + 35) + 'px';
         };
+
+        // --- LỊCH SỬ VIDEO ---
+        const loadHistory = () => {
+            const history = JSON.parse(localStorage.getItem('k12_ult_history') || '[]');
+            const list = $('#history-list');
+            if (history.length === 0) {
+                list.innerHTML = '<div style="text-align: center; color: var(--text-sec); font-size: 12px; padding: 20px;">Chưa có lịch sử</div>';
+                return;
+            }
+            
+            const incompleteHistory = history.filter(item => item.progress < 100);
+            if (incompleteHistory.length === 0) {
+                list.innerHTML = '<div style="text-align: center; color: var(--text-sec); font-size: 12px; padding: 20px;">Tất cả bài đã hoàn thành</div>';
+                return;
+            }
+
+            list.innerHTML = incompleteHistory.map(item => `
+                <div class="history-item" onclick="window.location.href='${item.url}'">
+                    <div class="history-info">
+                        <span style="font-size: 16px;">▶️</span>
+                        <div>
+                            <div class="history-title">${item.title || 'Bài học chưa có tên'}</div>
+                            <div style="font-size: 11px; color: var(--text-sec);">${new Date(item.time).toLocaleString('vi-VN')}</div>
+                        </div>
+                    </div>
+                    <div class="history-progress incomplete">${item.progress}%</div>
+                </div>
+            `).join('');
+        };
+
+        $('#clear-history').onclick = () => {
+            localStorage.removeItem('k12_ult_history');
+            loadHistory();
+            showToast('Đã xóa lịch sử', 'success');
+        };
+
+        // --- TRACK VIDEO PROGRESS ---
+        const trackProgress = () => {
+            const v = document.querySelector('video');
+            const titleEl = document.querySelector('.vjs-title, .video-title, h1, .lesson-title, [class*="lesson"]');
+            const urlEl = document.querySelector('a[class*="link"], a[href*="/lesson"], .next-button, .btn-next');
+            
+            if (v && v.src) {
+                const currentTitle = titleEl ? titleEl.innerText.trim() : 'Bài học';
+                const currentUrl = urlEl ? urlEl.href : window.location.href;
+                
+                if (currentUrl.includes('/lesson') || currentUrl.includes('/video')) {
+                    const history = JSON.parse(localStorage.getItem('k12_ult_history') || '[]');
+                    const existingIndex = history.findIndex(item => item.url === currentUrl);
+                    
+                    const progressData = {
+                        title: currentTitle,
+                        url: currentUrl,
+                        time: Date.now(),
+                        progress: Math.floor((v.currentTime / v.duration) * 100)
+                    };
+
+                    if (existingIndex >= 0) {
+                        history[existingIndex] = progressData;
+                    } else {
+                        history.unshift(progressData);
+                    }
+
+                    localStorage.setItem('k12_ult_history', JSON.stringify(history));
+                    loadHistory();
+                }
+            }
+        };
+
+        setInterval(trackProgress, 5000);
 
         panel.querySelectorAll('.tab').forEach(tab => {
             tab.onclick = () => {
@@ -325,6 +428,6 @@
         document.onmouseup = () => isDrag = false;
         $('.red').onclick = () => panel.style.display = 'none';
         document.addEventListener('keydown', (e) => { if(e.key === 'F2') panel.style.display = 'block'; });
-        setTimeout(adjustHeight, 100);
+        setTimeout(() => { adjustHeight(); loadHistory(); }, 100);
     });
 })();
