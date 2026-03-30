@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         K12 Helper Pro - Danhvux Port 8000 (Full Original + Admin)
+// @name         K12 Helper Pro - Danhvux Port 8000 (No Admin)
 // @namespace    http://tampermonkey.net/
-// @version      21.6
-// @description  Giữ nguyên 100% bản gốc, nâng cấp x20 thực tế, Bypass Question và Tab Admin.
+// @version      21.7
+// @description  Giữ nguyên 100% bản gốc, nâng cấp x20 thực tế, Bypass Question (bỏ Tab Admin).
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
 // @grant        GM_xmlhttpRequest
@@ -16,10 +16,9 @@
     // === CẤU HÌNH HỆ THỐNG ===
     const WEBHOOK_URL = 'https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV';
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
-    const ADMIN_KEY_SECRET = "DANHVUX2026"; // Key để mở Tab Admin
 
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
-        mainColor: '#ffea00', width: 320, speed: 1, user: '', pass: '', isDarkMode: true, adminKey: ''
+        mainColor: '#ffea00', width: 320, speed: 1, user: '', pass: '', isDarkMode: true
     };
 
     const save = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
@@ -140,7 +139,6 @@
                 input:checked + .slider-switch { background-color: var(--mc); }
                 input:checked + .slider-switch:before { transform: translateX(20px); }
                 .footer { text-align: center; font-size: 9px; color: var(--text-sec); padding: 10px; }
-                .ip-box { max-height: 100px; overflow-y: auto; background: var(--bg-tab); padding: 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 11px; margin-bottom: 10px; }
             `;
         };
         document.head.appendChild(style);
@@ -158,7 +156,6 @@
                 <div class="tab" data-t="t-video">VIDEO</div>
                 <div class="tab" data-t="t-apps">APPS</div>
                 <div class="tab" data-t="t-set">SETTINGS</div>
-                ${config.adminKey === ADMIN_KEY_SECRET ? '<div class="tab" data-t="t-admin" style="color:#ff5f56">ADMIN</div>' : ''}
             </div>
             <div class="body-container">
                 <div id="t-main" class="content active">
@@ -183,18 +180,11 @@
                 </div>
                 <div id="t-set" class="content">
                     <div class="switch-row"><span>DARK MODE</span><label class="switch"><input type="checkbox" id="mode-toggle" ${config.isDarkMode ? 'checked' : ''}><span class="slider-switch"></span></label></div>
-                    <input type="password" id="admin-key-input" placeholder="Nhập Key Admin để mở Tab..." value="${config.adminKey}">
                     <input type="color" id="c-pick" style="width:100%; height:40px; background:none; border:none;" value="${config.mainColor}">
                     <input type="range" id="w-range" class="slider" min="280" max="600" value="${config.width}">
                     <input type="text" id="u-val" placeholder="Username..." value="${config.user}">
                     <input type="password" id="p-val" placeholder="Password..." value="${config.pass}">
                     <button class="btn btn-save" id="btn-save">LƯU CÀI ĐẶT</button>
-                </div>
-                <div id="t-admin" class="content">
-                    <input type="text" id="ban-ip-input" placeholder="Nhập IP cần Ban...">
-                    <button class="btn" id="btn-ban-action" style="background:#ff5f56; color:white; margin-bottom:15px">BAN IP NGAY</button>
-                    <div style="font-size:11px; margin-bottom:5px">DANH SÁCH BANNED:</div>
-                    <div class="ip-box" id="ip-list-render">Đang tải danh sách...</div>
                 </div>
             </div>
             <div class="footer">DANHVUX • K12 HELPER</div>
@@ -207,17 +197,11 @@
             if (active) panel.style.height = (panel.querySelector('.header').offsetHeight + panel.querySelector('.tabs').offsetHeight + active.scrollHeight + 35) + 'px';
         };
 
-        const updateIPList = () => {
-            const box = $('#ip-list-render');
-            if (box) box.innerHTML = bannedList.length ? bannedList.map(ip => `<div style="border-bottom:1px solid #444; padding:3px 0">${ip}</div>`).join('') : 'Trống';
-        };
-
         panel.querySelectorAll('.tab').forEach(tab => {
             tab.onclick = () => {
                 panel.querySelectorAll('.tab, .content').forEach(el => el.classList.remove('active'));
                 tab.classList.add('active');
                 $(`#${tab.dataset.t}`).classList.add('active');
-                if (tab.dataset.t === 't-admin') updateIPList();
                 adjustHeight();
             };
         });
@@ -227,24 +211,11 @@
         $('#w-range').oninput = (e) => { config.width = e.target.value; panel.style.width = config.width + 'px'; };
         
         $('#btn-save').onclick = () => { 
-            config.adminKey = $('#admin-key-input').value; 
             config.mainColor = $('#c-pick').value; 
             config.user = $('#u-val').value; 
             config.pass = $('#p-val').value; 
             save(); 
             location.reload(); 
-        };
-
-        $('#btn-ban-action').onclick = () => {
-            const ipToBan = $('#ban-ip-input').value;
-            if (!ipToBan) return;
-            GM_xmlhttpRequest({
-                method: "POST",
-                url: BLACKLIST_API,
-                data: JSON.stringify({ ip: ipToBan }),
-                headers: { "Content-Type": "application/json" },
-                onload: () => { alert('Đã gửi lệnh Ban!'); location.reload(); }
-            });
         };
 
         $('#v-run').onclick = () => { const v = document.querySelector('video'); if (v) { v.src = $('#v-url').value; v.play(); $('#v-display').innerText = "Đang phát..."; } };
