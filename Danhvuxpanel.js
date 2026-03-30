@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         K12 Helper Pro - Danhvux Port 8000 (With Toast)
 // @namespace    http://tampermonkey.net/
-// @version      21.9
+// @version      21.9.1
 // @description  Giữ nguyên 100% bản gốc, nâng upgrade x20 thực tế, Bypass Question + Toast Notifications
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
@@ -12,16 +12,12 @@
 (function() {
     'use strict';
 
-    // === CẤU HÌNH HỆ THỐNG ===
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
-
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
         mainColor: '#ffea00', width: 320, speed: 1, user: '', pass: '', isDarkMode: true, toastPos: 'top-right'
     };
-
     const save = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
 
-    // --- HÀM TURBO X20 & BYPASS (CHẠY THỰC TẾ) ---
     const runTurbo = () => {
         const v = document.querySelector('video');
         if (v && config.speed > 1) {
@@ -32,11 +28,10 @@
     };
     setInterval(runTurbo, 1000);
 
-    // --- HÀM KIỂM TRA IP & BLACKLIST ---
     let bannedList = [];
     const startSecuritySystem = () => {
         return new Promise((resolve) => {
-            fetch('<https://api.ipify.org?format=json')>
+            fetch('https://api.ipify.org?format=json')
             .then(res => res.json())
             .then(data => {
                 const userIP = data.ip;
@@ -67,7 +62,6 @@
             </div>`;
     };
 
-    // --- TOAST NOTIFICATIONS SYSTEM ---
     const showToast = (message, type = 'info', duration = 3000) => {
         const isDark = config.isDarkMode;
         const pos = config.toastPos;
@@ -82,7 +76,8 @@
             pointer-events: none;
         `;
         
-        const positions = {            'top-right': 'top: 20px; right: 20px;',
+        const positions = {
+            'top-right': 'top: 20px; right: 20px;',
             'top-left': 'top: 20px; left: 20px;',
             'bottom-right': 'bottom: 20px; right: 20px;',
             'bottom-left': 'bottom: 20px; left: 20px;',
@@ -144,7 +139,6 @@
         }
     };
 
-    // --- KHỞI TẠO GIAO DIỆN CHÍNH ---
     startSecuritySystem().then(accessGranted => {
         if (!accessGranted) return;
 
@@ -159,7 +153,8 @@
                     --text-sec: ${isDark ? '#777' : '#999'}; --border: ${isDark ? '#333' : '#ddd'};
                     --shadow: ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.1)'};
                 }
-                #dv-panel {                    position: fixed; top: 50px; right: 20px; width: var(--w) !important;
+                #dv-panel {
+                    position: fixed; top: 50px; right: 20px; width: var(--w) !important;
                     background: var(--bg); color: var(--text); border-radius: 12px;
                     font-family: 'Segoe UI', sans-serif; z-index: 100000;
                     box-shadow: 0 10px 40px var(--shadow); overflow: hidden;
@@ -187,7 +182,8 @@
                 .btn { width: 100%; padding: 14px; background: #b8cc8e; border: none; border-radius: 12px; color: #1e2227; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
                 .btn-save { background: var(--mc) !important; color: #000; }
                 .switch-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-                .switch { position: relative; display: inline-block; width: 40px; height: 20px; }                .switch input { opacity: 0; width: 0; height: 0; }
+                .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+                .switch input { opacity: 0; width: 0; height: 0; }
                 .slider-switch { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
                 .slider-switch:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
                 input:checked + .slider-switch { background-color: var(--mc); }
@@ -224,17 +220,18 @@
                 </div>
                 <div id="t-apps" class="content">
                     <div class="app-grid">
-                        <div class="app-item" onclick="window.open('<https://gemini.google.com')">>✨ Gemini</div>
-                        <div class="app-item" onclick="window.open('<https://chatgpt.com')">>🤖 GPT</div>
-                        <div class="app-item" onclick="window.open('<https://messenger.com')">>💬 Msg</div>
-                        <div class="app-item" onclick="window.open('<https://facebook.com')">>📘 FB</div>
-                        <div class="app-item" onclick="window.open('<https://youtube.com')">>🔴 YT</div>
-                        <div class="app-item" onclick="window.open('<https://tiktok.com')">>🎵 TT</div>
+                        <div class="app-item" onclick="window.open('https://gemini.google.com')">✨ Gemini</div>
+                        <div class="app-item" onclick="window.open('https://chatgpt.com')">🤖 GPT</div>
+                        <div class="app-item" onclick="window.open('https://messenger.com')">💬 Msg</div>
+                        <div class="app-item" onclick="window.open('https://facebook.com')">📘 FB</div>
+                        <div class="app-item" onclick="window.open('https://youtube.com')">🔴 YT</div>
+                        <div class="app-item" onclick="window.open('https://tiktok.com')">🎵 TT</div>
                     </div>
                 </div>
                 <div id="t-set" class="content">
                     <div class="switch-row"><span>DARK MODE</span><label class="switch"><input type="checkbox" id="mode-toggle" ${config.isDarkMode ? 'checked' : ''}><span class="slider-switch"></span></label></div>
-                    <div class="switch-row"><span>TOAST POSITION</span>                        <select id="toast-pos" style="padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 6px;">
+                    <div class="switch-row"><span>TOAST POSITION</span>
+                        <select id="toast-pos" style="padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 6px;">
                             <option value="top-right" ${config.toastPos === 'top-right' ? 'selected' : ''}>Top Right</option>
                             <option value="top-left" ${config.toastPos === 'top-left' ? 'selected' : ''}>Top Left</option>
                             <option value="bottom-right" ${config.toastPos === 'bottom-right' ? 'selected' : ''}>Bottom Right</option>
@@ -303,7 +300,8 @@
                 v.play(); 
                 $('#v-display').innerText = "Đang phát..."; 
                 showToast('Đã bắt đầu phát video', 'success');
-            } else {                showToast('Không tìm thấy video element', 'error');
+            } else {
+                showToast('Không tìm thấy video element', 'error');
             }
         };
 
