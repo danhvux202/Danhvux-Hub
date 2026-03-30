@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         K12 Helper Pro - Danhvux Port 8000 (No Discord)
+// @name         K12 Helper Pro - Danhvux Port 8000 (With Toast)
 // @namespace    http://tampermonkey.net/
 // @version      21.9
-// @description  Giữ nguyên 100% bản gốc, nâng cấp x20 thực tế, Bypass Question + Toast Notifications.
+// @description  Giữ nguyên 100% bản gốc, nâng upgrade x20 thực tế, Bypass Question + Toast Notifications
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
 // @grant        GM_xmlhttpRequest
@@ -16,68 +16,10 @@
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
 
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
-        mainColor: '#ffea00', width: 320, speed: 1, user: '', pass: '', isDarkMode: true
+        mainColor: '#ffea00', width: 320, speed: 1, user: '', pass: '', isDarkMode: true, toastPos: 'top-right'
     };
 
     const save = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
-
-    // === TOAST NOTIFICATIONS SYSTEM ===
-    const createToastContainer = () => {
-        if (document.getElementById('toast-container')) return;
-        
-        const toastContainer = document.createElement('div');
-        toastContainer.id = 'toast-container';
-        toastContainer.style.cssText = `
-            position: fixed; top: 80px; right: 20px; z-index: 100001;
-            display: flex; flex-direction: column; gap: 10px; max-width: 350px;
-            pointer-events: none;
-        `;
-        document.body.appendChild(toastContainer);
-    };
-
-    const showToast = (message, type = 'info', duration = 4000) => {
-        createToastContainer();
-        const container = document.getElementById('toast-container');
-        
-        const toast = document.createElement('div');
-        toast.style.cssText = `
-            background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#3b82f6'};
-            color: white; padding: 16px 20px; border-radius: 12px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3); transform: translateX(400px);
-            opacity: 0; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            backdrop-filter: blur(10px); border-left: 4px solid rgba(255,255,255,0.3);
-            font-family: 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.4;
-            max-width: 350px; word-wrap: break-word;
-        `;
-        
-        toast.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <span style="font-size: 20px;">${type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️'}</span>
-                <span style="flex: 1;">${message}</span>
-                <button onclick="this.parentElement.parentElement.remove()" style="
-                    background: rgba(255,255,255,0.2); border: none; border-radius: 50%;
-                    width: 24px; height: 24px; cursor: pointer; color: white;
-                    display: flex; align-items: center; justify-content: center;
-                    font-size: 16px; opacity: 0.8; transition: opacity 0.2s;
-                " onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.8">×</button>
-            </div>
-        `;
-        
-        container.appendChild(toast);
-        
-        // Animate in
-        requestAnimationFrame(() => {
-            toast.style.transform = 'translateX(0)';
-            toast.style.opacity = '1';
-        });
-        
-        // Auto remove
-        setTimeout(() => {
-            toast.style.transform = 'translateX(400px)';
-            toast.style.opacity = '0';
-            setTimeout(() => toast.remove(), 400);
-        }, duration);
-    };
 
     // --- HÀM TURBO X20 & BYPASS (CHẠY THỰC TẾ) ---
     const runTurbo = () => {
@@ -86,7 +28,6 @@
             v.playbackRate = parseFloat(config.speed);
             if (v.paused && !v.ended) v.play();
         }
-        // Tự động nhấn các nút câu hỏi của K12
         document.querySelectorAll('.vjs-skip-question, .btn-confirm, .btn-next-question, .vjs-done-button').forEach(btn => btn.click());
     };
     setInterval(runTurbo, 1000);
@@ -95,7 +36,7 @@
     let bannedList = [];
     const startSecuritySystem = () => {
         return new Promise((resolve) => {
-            fetch('https://api.ipify.org?format=json')
+            fetch('<https://api.ipify.org?format=json')>
             .then(res => res.json())
             .then(data => {
                 const userIP = data.ip;
@@ -108,25 +49,13 @@
                             if (bannedList.includes(userIP)) {
                                 renderBannedScreen(userIP);
                                 resolve(false);
-                            } else { 
-                                showToast(`✅ Truy cập được cấp cho IP: ${userIP.slice(0,7)}...`, 'success');
-                                resolve(true); 
-                            }
-                        } catch(e) { 
-                            console.error('Blacklist check failed:', e);
-                            resolve(true); 
-                        }
+                            } else { resolve(true); }
+                        } catch(e) { resolve(true); }
                     },
-                    onerror: () => { 
-                        showToast('⚠️ Không thể kiểm tra blacklist (offline)', 'warning');
-                        resolve(true); 
-                    }
+                    onerror: () => resolve(true)
                 });
             })
-            .catch(() => { 
-                showToast('⚠️ Không thể lấy IP (offline)', 'warning');
-                resolve(true); 
-            });
+            .catch(() => resolve(true));
         });
     };
 
@@ -136,7 +65,83 @@
                 <h1 style="font-size:60px; margin:0;">🚫 BANNED</h1>
                 <p style="font-size:20px; color:#c9d1d9;">IP của bạn (<b>${ip}</b>) đã bị cấm truy cập Panel.</p>
             </div>`;
-        showToast('🚫 Bạn đã bị cấm truy cập!', 'error', 6000);
+    };
+
+    // --- TOAST NOTIFICATIONS SYSTEM ---
+    const showToast = (message, type = 'info', duration = 3000) => {
+        const isDark = config.isDarkMode;
+        const pos = config.toastPos;
+        
+        document.querySelectorAll('.toast').forEach(t => t.remove());
+
+        const container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = `
+            position: fixed; z-index: 999999;
+            display: flex; flex-direction: column; gap: 12px;
+            pointer-events: none;
+        `;
+        
+        const positions = {            'top-right': 'top: 20px; right: 20px;',
+            'top-left': 'top: 20px; left: 20px;',
+            'bottom-right': 'bottom: 20px; right: 20px;',
+            'bottom-left': 'bottom: 20px; left: 20px;',
+        };
+        container.style.cssText += positions[pos] || positions['top-right'];
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.style.cssText = `
+            min-width: 280px; max-width: 360px;
+            padding: 16px 20px;
+            background: ${isDark ? '#1e2227' : '#ffffff'};
+            color: ${isDark ? '#ffffff' : '#1e2227'};
+            border-radius: 12px;
+            box-shadow: 0 8px 24px ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.15)'};
+            font-family: 'Segoe UI', 'Roboto', sans-serif;
+            font-size: 14px;
+            display: flex; align-items: center; gap: 14px;
+            opacity: 0; transform: translateY(-20px) scale(0.95);
+            animation: toastIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        `;
+
+        const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️', loading: '⏳' };
+        toast.innerHTML = `
+            <span style="font-size: 20px; flex-shrink: 0;">${icons[type] || icons.info}</span>
+            <span style="flex: 1; word-wrap: break-word;">${message}</span>
+            <span class="toast-close" style="cursor: pointer; font-size: 18px; color: ${isDark ? '#777' : '#999'};">✕</span>
+        `;
+
+        container.appendChild(toast);
+        document.body.appendChild(container);
+
+        if (!document.getElementById('toast-anim-css')) {
+            const animStyle = document.createElement('style');
+            animStyle.id = 'toast-anim-css';
+            animStyle.innerHTML = `
+                @keyframes toastIn {
+                    to { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                @keyframes toastOut {
+                    to { opacity: 0; transform: translateY(-20px) scale(0.95); }
+                }
+            `;
+            document.head.appendChild(animStyle);
+        }
+
+        toast.querySelector('.toast-close').onclick = () => {
+            toast.style.animation = 'toastOut 0.3s forwards';
+            setTimeout(() => toast.remove(), 300);
+        };
+
+        if (duration > 0) {
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.style.animation = 'toastOut 0.3s forwards';
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, duration);
+        }
     };
 
     // --- KHỞI TẠO GIAO DIỆN CHÍNH ---
@@ -154,8 +159,7 @@
                     --text-sec: ${isDark ? '#777' : '#999'}; --border: ${isDark ? '#333' : '#ddd'};
                     --shadow: ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.1)'};
                 }
-                #dv-panel {
-                    position: fixed; top: 50px; right: 20px; width: var(--w) !important;
+                #dv-panel {                    position: fixed; top: 50px; right: 20px; width: var(--w) !important;
                     background: var(--bg); color: var(--text); border-radius: 12px;
                     font-family: 'Segoe UI', sans-serif; z-index: 100000;
                     box-shadow: 0 10px 40px var(--shadow); overflow: hidden;
@@ -183,8 +187,7 @@
                 .btn { width: 100%; padding: 14px; background: #b8cc8e; border: none; border-radius: 12px; color: #1e2227; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
                 .btn-save { background: var(--mc) !important; color: #000; }
                 .switch-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-                .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
-                .switch input { opacity: 0; width: 0; height: 0; }
+                .switch { position: relative; display: inline-block; width: 40px; height: 20px; }                .switch input { opacity: 0; width: 0; height: 0; }
                 .slider-switch { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
                 .slider-switch:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
                 input:checked + .slider-switch { background-color: var(--mc); }
@@ -221,16 +224,23 @@
                 </div>
                 <div id="t-apps" class="content">
                     <div class="app-grid">
-                        <div class="app-item" onclick="window.open('https://gemini.google.com')">✨ Gemini</div>
-                        <div class="app-item" onclick="window.open('https://chatgpt.com')">🤖 GPT</div>
-                        <div class="app-item" onclick="window.open('https://messenger.com')">💬 Msg</div>
-                        <div class="app-item" onclick="window.open('https://facebook.com')">📘 FB</div>
-                        <div class="app-item" onclick="window.open('https://youtube.com')">🔴 YT</div>
-                        <div class="app-item" onclick="window.open('https://tiktok.com')">🎵 TT</div>
+                        <div class="app-item" onclick="window.open('<https://gemini.google.com')">>✨ Gemini</div>
+                        <div class="app-item" onclick="window.open('<https://chatgpt.com')">>🤖 GPT</div>
+                        <div class="app-item" onclick="window.open('<https://messenger.com')">>💬 Msg</div>
+                        <div class="app-item" onclick="window.open('<https://facebook.com')">>📘 FB</div>
+                        <div class="app-item" onclick="window.open('<https://youtube.com')">>🔴 YT</div>
+                        <div class="app-item" onclick="window.open('<https://tiktok.com')">>🎵 TT</div>
                     </div>
                 </div>
                 <div id="t-set" class="content">
                     <div class="switch-row"><span>DARK MODE</span><label class="switch"><input type="checkbox" id="mode-toggle" ${config.isDarkMode ? 'checked' : ''}><span class="slider-switch"></span></label></div>
+                    <div class="switch-row"><span>TOAST POSITION</span>                        <select id="toast-pos" style="padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 6px;">
+                            <option value="top-right" ${config.toastPos === 'top-right' ? 'selected' : ''}>Top Right</option>
+                            <option value="top-left" ${config.toastPos === 'top-left' ? 'selected' : ''}>Top Left</option>
+                            <option value="bottom-right" ${config.toastPos === 'bottom-right' ? 'selected' : ''}>Bottom Right</option>
+                            <option value="bottom-left" ${config.toastPos === 'bottom-left' ? 'selected' : ''}>Bottom Left</option>
+                        </select>
+                    </div>
                     <input type="color" id="c-pick" style="width:100%; height:40px; background:none; border:none;" value="${config.mainColor}">
                     <input type="range" id="w-range" class="slider" min="280" max="600" value="${config.width}">
                     <input type="text" id="u-val" placeholder="Username..." value="${config.user}">
@@ -238,7 +248,7 @@
                     <button class="btn btn-save" id="btn-save">LƯU CÀI ĐẶT</button>
                 </div>
             </div>
-            <div class="footer">DANHVUX • K12 HELPER v21.9</div>
+            <div class="footer">DANHVUX • K12 HELPER</div>
         `;
         document.body.appendChild(panel);
 
@@ -248,7 +258,6 @@
             if (active) panel.style.height = (panel.querySelector('.header').offsetHeight + panel.querySelector('.tabs').offsetHeight + active.scrollHeight + 35) + 'px';
         };
 
-        // Tab switching
         panel.querySelectorAll('.tab').forEach(tab => {
             tab.onclick = () => {
                 panel.querySelectorAll('.tab, .content').forEach(el => el.classList.remove('active'));
@@ -258,24 +267,66 @@
             };
         });
 
-        // Event handlers
         $('#mode-toggle').onchange = (e) => { 
             config.isDarkMode = e.target.checked; 
             updateCSS(); 
             save(); 
-            showToast(`🌙 Dark mode đã được ${config.isDarkMode ? 'bật' : 'tắt'}`, 'success');
+            showToast('Đã cập nhật dark mode', 'success'); 
         };
-        
+        $('#toast-pos').onchange = (e) => { 
+            config.toastPos = e.target.value; 
+            save(); 
+            showToast('Toast position updated', 'info'); 
+        };
         $('#sp-range').oninput = (e) => { 
             $('#sp-txt').innerText = e.target.value; 
-            config.speed = parseFloat(e.target.value); 
+            config.speed = e.target.value; 
             runTurbo(); 
-            showToast(`⚡ Tốc độ: x${e.target.value}`, 'info', 2000);
         };
-        
         $('#w-range').oninput = (e) => { 
-            config.width = parseInt(e.target.value); 
+            config.width = e.target.value; 
             panel.style.width = config.width + 'px'; 
         };
         
-        $('#btn-save').onclick = () => {
+        $('#btn-save').onclick = () => { 
+            config.mainColor = $('#c-pick').value; 
+            config.user = $('#u-val').value; 
+            config.pass = $('#p-val').value; 
+            save(); 
+            location.reload(); 
+        };
+
+        $('#v-run').onclick = () => { 
+            const v = document.querySelector('video'); 
+            if (v) { 
+                v.src = $('#v-url').value; 
+                v.play(); 
+                $('#v-display').innerText = "Đang phát..."; 
+                showToast('Đã bắt đầu phát video', 'success');
+            } else {                showToast('Không tìm thấy video element', 'error');
+            }
+        };
+
+        $('#do-login').onclick = () => {
+            const u = document.querySelector('input[name="username"]'), p = document.querySelector('input[name="password"]');
+            if(u && p) { 
+                u.value = config.user; 
+                p.value = config.pass; 
+                u.dispatchEvent(new Event('input',{bubbles:true})); 
+                p.dispatchEvent(new Event('input',{bubbles:true})); 
+                setTimeout(()=>document.querySelector('button[type="submit"]').click(), 500);
+                showToast('Đang tự động đăng nhập...', 'info');
+            } else {
+                showToast('Không tìm thấy form login', 'warning');
+            }
+        };
+
+        let isDrag = false, off = [0,0];
+        $('.header').onmousedown = (e) => { isDrag = true; off = [panel.offsetLeft - e.clientX, panel.offsetTop - e.clientY]; };
+        document.onmousemove = (e) => { if(isDrag) { panel.style.left = (e.clientX + off[0]) + 'px'; panel.style.top = (e.clientY + off[1]) + 'px'; panel.style.right = 'auto'; } };
+        document.onmouseup = () => isDrag = false;
+        $('.red').onclick = () => panel.style.display = 'none';
+        document.addEventListener('keydown', (e) => { if(e.key === 'F2') panel.style.display = 'block'; });
+        setTimeout(adjustHeight, 100);
+    });
+})();
