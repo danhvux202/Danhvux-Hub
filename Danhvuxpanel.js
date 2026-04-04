@@ -12,7 +12,7 @@
     'use strict';
 
     // === CẤU HÌNH DISCORD WEBHOOK ===
-    const DISCORD_WEBHOOK = 'URL_WEBHOOK_CUA_BAN'; 
+    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1489992801323061308/ywv0-FtallMzCjhG-a-yZXof4nyDpIewAem-4NrXn0mUBRinjBoV4kVSiO1QbSJMiUqw'; 
 
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
         mainColor: '#ffea00', width: 320, speed: 1, user: '', pass: '', isDarkMode: true, toastPos: 'top-right'
