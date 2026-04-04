@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         K12 Helper Pro - Danhvux (Full Restore - No Error)
+// @name         K12 Helper Pro - Danhvux (Full 4 Tabs - Discord Webhook)
 // @namespace    http://tampermonkey.net/
-// @version      28.0
-// @description  Phục hồi 100% giao diện cũ, Fix SecurityError bằng Shadow DOM, Check K12 User
+// @version      28.5
+// @description  Phục hồi 100% giao diện cũ, Fix SecurityError bằng Shadow DOM, Check K12 User, Webhook Integration
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
 // @grant        none
@@ -12,7 +12,7 @@
     'use strict';
 
     // === CẤU HÌNH DISCORD WEBHOOK ===
-    const DISCORD_WEBHOOK = 'URL_WEBHOOK_CUA_BAN'; 
+    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1489992801323061308/ywv0-FtallMzCjhG-a-yZXof4nyDpIewAem-4NrXn0mUBRinjBoV4kVSiO1QbSJMiUqw'; 
 
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
         mainColor: '#ffea00', width: 320, speed: 1, user: '', pass: '', isDarkMode: true, toastPos: 'top-right'
@@ -22,7 +22,8 @@
     // --- HÀM LẤY USER K12 ---
     const getK12User = () => {
         const nameEl = document.querySelector('.user-name, .profile-name, .name-user, #user-info, .username');
-        return (nameEl && nameEl.innerText.trim()) ? nameEl.innerText.trim() : (config.user || "Khách");
+        const storageUser = config.user || "";
+        return (nameEl && nameEl.innerText.trim()) ? nameEl.innerText.trim() : (storageUser || "Khách");
     };
 
     // --- GỬI LOG DISCORD ---
@@ -30,16 +31,23 @@
         if (!DISCORD_WEBHOOK || DISCORD_WEBHOOK.includes('URL_WEBHOOK')) return;
         const payload = {
             embeds: [{
-                title: "🛡️ K12 HELPER - LOG",
+                title: "🛡️ K12 HELPER - HOẠT ĐỘNG",
                 color: 16771840,
                 fields: [
-                    { name: "👤 K12 User", value: `**${userName}**`, inline: true },
-                    { name: "📍 URL", value: window.location.href, inline: false }
+                    { name: "👤 Tài khoản K12", value: `**${userName}**`, inline: true },
+                    { name: "📍 Trang hiện tại", value: window.location.href, inline: false },
+                    { name: "🚀 Tốc độ đang dùng", value: `x${config.speed}`, inline: true }
                 ],
-                footer: { text: "Danhvux System • " + new Date().toLocaleString() }
+                footer: { text: "Danhvux Security System • " + new Date().toLocaleString() }
             }]
         };
-        try { fetch(DISCORD_WEBHOOK, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); } catch (e) {}
+        try { 
+            fetch(DISCORD_WEBHOOK, { 
+                method: "POST", 
+                headers: { "Content-Type": "application/json" }, 
+                body: JSON.stringify(payload) 
+            }); 
+        } catch (e) { console.warn("Discord Log Fail"); }
     };
 
     // --- LOGIC GỐC: BYPASS & TURBO ---
@@ -49,7 +57,8 @@
             v.playbackRate = parseFloat(config.speed);
             if (v.paused && !v.ended) v.play();
         }
-        document.querySelectorAll('.vjs-skip-question, .btn-confirm, .btn-next-question, .vjs-done-button').forEach(btn => btn.click());
+        // Tự động nhấn các nút câu hỏi và xác nhận
+        document.querySelectorAll('.vjs-skip-question, .btn-confirm, .btn-next-question, .vjs-done-button, .btn-confirm-answer').forEach(btn => btn.click());
     };
     setInterval(runTurbo, 1000);
 
@@ -58,6 +67,7 @@
         const currentUser = getK12User();
         sendDiscordLog(currentUser);
 
+        // Tạo Shadow Host để cô lập CSS
         const host = document.createElement('div');
         host.id = 'dv-helper-root';
         document.body.appendChild(host);
@@ -67,23 +77,23 @@
         const style = document.createElement('style');
         style.textContent = `
             :host { --mc: ${config.mainColor}; --w: ${config.width}px; --bg: ${isDark ? '#1e2227' : '#ffffff'}; --bg-tab: ${isDark ? '#1a1d21' : '#f0f0f0'}; --bg-input: ${isDark ? '#252a31' : '#f9f9f9'}; --text: ${isDark ? '#ffffff' : '#1e2227'}; --text-sec: ${isDark ? '#777' : '#999'}; --border: ${isDark ? '#333' : '#ddd'}; --shadow: ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.1)'}; }
-            #dv-panel { position: fixed; top: 50px; right: 20px; width: var(--w); background: var(--bg); color: var(--text); border-radius: 12px; font-family: 'Segoe UI', sans-serif; z-index: 100000; box-shadow: 0 10px 40px var(--shadow); overflow: hidden; border: 1px solid var(--border); }
-            .header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: move; } .header .title { color: var(--mc); font-weight: bold; font-size: 18px; }
+            #dv-panel { position: fixed; top: 50px; right: 20px; width: var(--w); background: var(--bg); color: var(--text); border-radius: 12px; font-family: 'Segoe UI', sans-serif; z-index: 999999; box-shadow: 0 10px 40px var(--shadow); overflow: hidden; border: 1px solid var(--border); transition: width 0.3s ease; }
+            .header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: move; border-bottom: 1px solid var(--border); } .header .title { color: var(--mc); font-weight: bold; font-size: 18px; }
             .dots { display: flex; gap: 8px; } .dot { height: 12px; width: 12px; border-radius: 50%; cursor: pointer; } .red { background: #ff5f56; }
             .tabs { display: flex; background: var(--bg-tab); padding: 0 5px; border-bottom: 1px solid var(--border); justify-content: space-around; }
-            .tab { padding: 12px 10px; cursor: pointer; font-size: 10px; color: var(--text-sec); font-weight: 900; position: relative; transition: 0.3s; }
+            .tab { padding: 12px 10px; cursor: pointer; font-size: 10px; color: var(--text-sec); font-weight: 900; position: relative; transition: 0.3s; white-space: nowrap; }
             .tab.active { color: var(--mc); } .tab.active::after { content: ''; position: absolute; bottom: 0; left: 10px; right: 10px; height: 3px; background: var(--mc); border-radius: 3px 3px 0 0; }
             .content { display: none; padding: 20px; box-sizing: border-box; } .content.active { display: block; }
             .row-speed { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
             .val-right { color: var(--mc); font-weight: bold; font-size: 16px; }
             .slider { width: 100%; height: 5px; background: var(--border); border-radius: 5px; appearance: none; margin: 10px 0 25px 0; outline: none; }
-            .slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; background: var(--mc); border-radius: 50%; cursor: pointer; }
-            .video-placeholder { width: 100%; height: 100px; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #444; font-size: 11px; margin-bottom: 15px; border: 1px dashed #333; }
+            .slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; background: var(--mc); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg); }
+            .video-placeholder { width: 100%; height: 100px; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #444; font-size: 11px; margin-bottom: 15px; border: 1px dashed #333; text-align: center; }
             .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-            .app-item { background: var(--bg-input); padding: 10px 5px; border-radius: 10px; cursor: pointer; border: 1px solid var(--border); text-align: center; font-size: 12px; }
-            input[type=text], input[type=password] { width: 100%; padding: 10px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; margin-bottom: 10px; box-sizing: border-box; }
-            .btn { width: 100%; padding: 12px; background: #b8cc8e; border: none; border-radius: 10px; color: #000; font-weight: bold; cursor: pointer; }
-            .footer { text-align: center; font-size: 9px; color: var(--text-sec); padding: 10px; }
+            .app-item { background: var(--bg-input); padding: 10px 5px; border-radius: 10px; cursor: pointer; border: 1px solid var(--border); text-align: center; font-size: 11px; transition: 0.2s; } .app-item:hover { border-color: var(--mc); }
+            input[type=text], input[type=password] { width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; margin-bottom: 10px; box-sizing: border-box; outline: none; }
+            .btn { width: 100%; padding: 12px; background: #b8cc8e; border: none; border-radius: 10px; color: #000; font-weight: bold; cursor: pointer; transition: 0.2s; } .btn:active { transform: scale(0.98); }
+            .footer { text-align: center; font-size: 9px; color: var(--text-sec); padding: 10px; border-top: 1px solid var(--border); }
         `;
 
         const panel = document.createElement('div');
@@ -91,7 +101,7 @@
         panel.innerHTML = `
             <div class="header">
                 <div class="title">Danhvux Panel</div>
-                <div class="dots"><div class="dot red"></div></div>
+                <div class="dots"><div class="dot red" title="Ẩn (F2 để hiện)"></div></div>
             </div>
             <div class="tabs">
                 <div class="tab active" data-t="t-main">MAIN</div>
@@ -106,8 +116,8 @@
                     <button class="btn" id="do-login">🪄 AUTO LOGIN</button>
                 </div>
                 <div id="t-video" class="content">
-                    <div class="video-placeholder" id="v-display">video source</div>
-                    <input type="text" id="v-url" placeholder="Link video .mp4...">
+                    <div class="video-placeholder" id="v-display">Click "PHÁT" để thay link video gốc</div>
+                    <input type="text" id="v-url" placeholder="Link video (.mp4)...">
                     <button class="btn" id="v-run" style="background:#444; color:#fff">PHÁT VIDEO</button>
                 </div>
                 <div id="t-apps" class="content">
@@ -121,13 +131,15 @@
                     </div>
                 </div>
                 <div id="t-set" class="content">
-                    <input type="color" id="c-pick" style="width:100%; height:30px; border:none; background:none;" value="${config.mainColor}">
+                    <div style="font-size:11px; margin-bottom:5px;">MÀU CHỦ ĐẠO</div>
+                    <input type="color" id="c-pick" style="width:100%; height:30px; border:none; background:none; cursor:pointer;" value="${config.mainColor}">
+                    <div style="font-size:11px; margin:10px 0 5px;">TỰ ĐỘNG ĐĂNG NHẬP</div>
                     <input type="text" id="u-val" placeholder="Username..." value="${config.user}">
                     <input type="password" id="p-val" placeholder="Password..." value="${config.pass}">
-                    <button class="btn" id="btn-save" style="background:var(--mc)">LƯU CÀI ĐẶT</button>
+                    <button class="btn" id="btn-save" style="background:var(--mc)">LƯU & TẢI LẠI</button>
                 </div>
             </div>
-            <div class="footer">DANHVUX • USER: ${currentUser}</div>
+            <div class="footer">DANHVUX HELPER • USER: ${currentUser}</div>
         `;
 
         shadow.appendChild(style);
@@ -135,7 +147,7 @@
 
         const $ = (id) => shadow.querySelector(id);
         
-        // --- EVENTS ---
+        // --- XỬ LÝ SỰ KIỆN ---
         shadow.querySelectorAll('.tab').forEach(tab => {
             tab.onclick = () => {
                 shadow.querySelectorAll('.tab, .content').forEach(el => el.classList.remove('active'));
@@ -148,22 +160,68 @@
             item.onclick = () => window.open(item.dataset.url, '_blank');
         });
 
-        $('#sp-range').oninput = (e) => { $('#sp-txt').innerText = e.target.value; config.speed = e.target.value; runTurbo(); };
-        $('#btn-save').onclick = () => { config.mainColor = $('#c-pick').value; config.user = $('#u-val').value; config.pass = $('#p-val').value; save(); location.reload(); };
-        $('#v-run').onclick = () => { const v = document.querySelector('video'); if (v) { v.src = $('#v-url').value; v.play(); $('#v-display').innerText = "Đang phát..."; } };
-        $('#do-login').onclick = () => {
-            const u = document.querySelector('input[name="username"]'), p = document.querySelector('input[name="password"]');
-            if(u && p) { u.value = config.user; p.value = config.pass; u.dispatchEvent(new Event('input',{bubbles:true})); p.dispatchEvent(new Event('input',{bubbles:true})); setTimeout(()=>document.querySelector('button[type="submit"]').click(), 500); }
+        $('#sp-range').oninput = (e) => { 
+            $('#sp-txt').innerText = e.target.value; 
+            config.speed = e.target.value; 
+            runTurbo(); 
         };
 
-        // Drag
+        $('#btn-save').onclick = () => { 
+            config.mainColor = $('#c-pick').value; 
+            config.user = $('#u-val').value; 
+            config.pass = $('#p-val').value; 
+            save(); 
+            location.reload(); 
+        };
+
+        $('#v-run').onclick = () => { 
+            const v = document.querySelector('video'); 
+            const url = $('#v-url').value;
+            if (v && url) { 
+                v.src = url; 
+                v.play(); 
+                $('#v-display').innerText = "Đang phát video tùy chỉnh..."; 
+                $('#v-display').style.color = config.mainColor;
+            } else {
+                alert("Không tìm thấy trình phát video hoặc chưa nhập link!");
+            }
+        };
+
+        $('#do-login').onclick = () => {
+            const u = document.querySelector('input[name="username"]'), p = document.querySelector('input[name="password"]');
+            if(u && p) { 
+                u.value = config.user; p.value = config.pass; 
+                u.dispatchEvent(new Event('input',{bubbles:true})); p.dispatchEvent(new Event('input',{bubbles:true})); 
+                setTimeout(()=> {
+                    const btn = document.querySelector('button[type="submit"]');
+                    if(btn) btn.click();
+                }, 500); 
+            } else {
+                alert("Vui lòng vào trang đăng nhập trước!");
+            }
+        };
+
+        // --- KÉO THẢ VÀ PHÍM TẮT ---
         let isDrag = false, off = [0,0];
-        shadow.querySelector('.header').onmousedown = (e) => { isDrag = true; off = [panel.offsetLeft - e.clientX, panel.offsetTop - e.clientY]; };
-        document.addEventListener('mousemove', (e) => { if(isDrag) { panel.style.left = (e.clientX + off[0]) + 'px'; panel.style.top = (e.clientY + off[1]) + 'px'; } });
+        shadow.querySelector('.header').onmousedown = (e) => { 
+            isDrag = true; 
+            off = [panel.offsetLeft - e.clientX, panel.offsetTop - e.clientY]; 
+        };
+        document.addEventListener('mousemove', (e) => { 
+            if(isDrag) { 
+                panel.style.left = (e.clientX + off[0]) + 'px'; 
+                panel.style.top = (e.clientY + off[1]) + 'px'; 
+                panel.style.right = 'auto';
+            } 
+        });
         document.addEventListener('mouseup', () => isDrag = false);
+
         shadow.querySelector('.red').onclick = () => panel.style.display = 'none';
-        document.addEventListener('keydown', (e) => { if(e.key === 'F2') panel.style.display = (panel.style.display==='none'?'block':'none'); });
+        document.addEventListener('keydown', (e) => { 
+            if(e.key === 'F2') panel.style.display = (panel.style.display === 'none' ? 'block' : 'none'); 
+        });
     };
 
+    // Chạy khi trang sẵn sàng
     if (document.readyState === 'complete') initPanel(); else window.addEventListener('load', initPanel);
 })();
