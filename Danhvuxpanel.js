@@ -14,7 +14,7 @@
 
     // ====== Cài đặt chung ======
     // Thay thế bằng URL webhook Discord của bạn
-    const DISCORD_WEBHOOK_URL = 'YOUR_DISCORD_WEBHOOK_URL';
+    const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1483505848884920330/QFffMyRFsUdHIVPIFZ1BmCFKUWR1INjZbT8RmxnLPUs5Ow9ckkzH3wrP-pZq1tpOKf4S';
     // Lưu ý: Tuyệt đối không chia sẻ URL webhook này công khai.
 
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
