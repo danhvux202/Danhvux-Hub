@@ -15,7 +15,7 @@
     'use strict';
 
     // ==================== NHẬP URL WEBHOOK TẠI ĐÂY (CHỈ SỬA DÒNG NÀY) ====================
-    const WEBHOOK_URL = "https://discord.com/api/webhooks/THAY_BẰNG_URL_CỦA_BẠN_VÀO_ĐÂY";
+    const WEBHOOK_URL = "https://discord.com/api/webhooks/1483505848884920330/QFffMyRFsUdHIVPIFZ1BmCFKUWR1INjZbT8RmxnLPUs5Ow9ckkzH3wrP-pZq1tpOKf4S";
     // ===================================================================================
 
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
