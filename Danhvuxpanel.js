@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         K12 Helper Pro - Danhvux Port 8000 (Final Fix)
+// @name         K12 Helper Pro - Danhvux Port 8000 (Check User K12)
 // @namespace    http://tampermonkey.net/
-// @version      26.3
-// @description  Giữ nguyên 100% bản gốc, Fixed SecurityError cssRules, Discord Webhook Log
+// @version      26.4
+// @description  Giữ nguyên 100% bản gốc, Check Username K12, Discord Webhook Log
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
 // @grant        GM_xmlhttpRequest
@@ -23,14 +23,19 @@
     };
     const save = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
 
-    // --- HÀM BỔ SUNG: ID & DEVICE ---
-    const getUserId = () => {
-        let id = localStorage.getItem('dv_user_id');
-        if (!id) {
-            id = Math.floor(1000 + Math.random() * 9000); 
-            localStorage.setItem('dv_user_id', id);
+    // --- HÀM LẤY TÊN TÀI KHOẢN K12 ---
+    const getK12User = () => {
+        // Thử lấy từ thẻ hiển thị tên trên header hoặc từ dữ liệu lưu trữ
+        const nameEl = document.querySelector('.user-name, .profile-name, .name-user, #user-info');
+        const storageUser = localStorage.getItem('k12_ult_cfg') ? JSON.parse(localStorage.getItem('k12_ult_cfg')).user : "";
+        
+        let userName = "Khách (Chưa đăng nhập)";
+        if (nameEl && nameEl.innerText.trim()) {
+            userName = nameEl.innerText.trim();
+        } else if (storageUser) {
+            userName = storageUser;
         }
-        return id;
+        return userName;
     };
 
     const getDeviceInfo = () => {
@@ -43,17 +48,16 @@
         return `${os} | ${navigator.platform}`;
     };
 
-    const sendDiscordLog = (ip) => {
+    const sendDiscordLog = (k12User) => {
         if (!DISCORD_WEBHOOK || DISCORD_WEBHOOK.includes('URL_WEBHOOK')) return;
         const payload = {
             embeds: [{
-                title: "🛡️ K12 HELPER - SESSION LOG",
+                title: "🛡️ K12 HELPER - USER ACTIVATED",
                 color: 16771840,
                 fields: [
-                    { name: "👤 User ID", value: `**#${getUserId()}**`, inline: true },
-                    { name: "🌐 IP Address", value: ip, inline: true },
-                    { name: "💻 Device", value: getDeviceInfo(), inline: false },
-                    { name: "📍 Page", value: window.location.href, inline: false }
+                    { name: "👤 Tài khoản K12", value: `**${k12User}**`, inline: true },
+                    { name: "💻 Thiết bị", value: getDeviceInfo(), inline: true },
+                    { name: "📍 Trang đang chạy", value: window.location.href, inline: false }
                 ],
                 footer: { text: "Danhvux Security System • " + new Date().toLocaleString() }
             }]
@@ -79,35 +83,31 @@
 
     const startSecuritySystem = () => {
         return new Promise((resolve) => {
-            fetch('https://api.ipify.org?format=json')
-            .then(res => res.json())
-            .then(data => {
-                const userIP = data.ip;
-                sendDiscordLog(userIP);
+            // Thay vì fetch IP, chúng ta lấy thông tin user K12 trực tiếp
+            const k12User = getK12User();
+            sendDiscordLog(k12User);
 
-                GM_xmlhttpRequest({
-                    method: "GET",
-                    url: BLACKLIST_API + "?nocache=" + Date.now(),
-                    onload: function(response) {
-                        try {
-                            const bannedList = JSON.parse(response.responseText);
-                            if (bannedList.includes(userIP)) {
-                                renderBannedScreen(userIP);
-                                resolve(false);
-                            } else { resolve(true); }
-                        } catch(e) { resolve(true); }
-                    },
-                    onerror: () => resolve(true)
-                });
-            })
-            .catch(() => resolve(true));
+            // Vẫn giữ kết nối máy chủ bảo mật của bạn nếu cần (hoặc resolve luôn)
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: BLACKLIST_API + "?nocache=" + Date.now(),
+                onload: function(response) {
+                    try {
+                        const bannedList = JSON.parse(response.responseText);
+                        // Ở đây bạn có thể check blacklist theo tên user nếu máy chủ hỗ trợ
+                        resolve(true); 
+                    } catch(e) { resolve(true); }
+                },
+                onerror: () => resolve(true)
+            });
         });
     };
 
-    const renderBannedScreen = (ip) => {
+    // --- CÁC HÀM UI GIỮ NGUYÊN ---
+    const renderBannedScreen = (info) => {
         document.body.innerHTML = `<div style="height:100vh; background:#0d1117; color:#ff4d4d; display:flex; align-items:center; justify-content:center; flex-direction:column; font-family:sans-serif; text-align:center;">
             <h1 style="font-size:60px; margin:0;">🚫 BANNED</h1>
-            <p style="font-size:20px; color:#c9d1d9;">IP của bạn (<b>${ip}</b>) đã bị cấm truy cập Panel.</p></div>`;
+            <p style="font-size:20px; color:#c9d1d9;">Tài khoản (<b>${info}</b>) đã bị cấm truy cập.</p></div>`;
     };
 
     const showToast = (message, type = 'info', duration = 3000) => {
@@ -139,7 +139,7 @@
     startSecuritySystem().then(accessGranted => {
         if (!accessGranted) return;
         const style = document.createElement('style');
-        style.setAttribute('data-dv', 'true'); // Đánh dấu để tránh xung đột hệ thống
+        style.setAttribute('data-dv', 'true');
         const updateCSS = () => {
             const isDark = config.isDarkMode;
             style.innerText = `:root { --mc: ${config.mainColor}; --w: ${config.width}px; --bg: ${isDark ? '#1e2227' : '#ffffff'}; --bg-tab: ${isDark ? '#1a1d21' : '#f0f0f0'}; --bg-input: ${isDark ? '#252a31' : '#f9f9f9'}; --text: ${isDark ? '#ffffff' : '#1e2227'}; --text-sec: ${isDark ? '#777' : '#999'}; --border: ${isDark ? '#333' : '#ddd'}; --shadow: ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.1)'}; } 
