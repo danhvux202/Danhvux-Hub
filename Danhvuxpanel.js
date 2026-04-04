@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         K12 Helper Pro - Danhvux Port 8000 (With Discord Log)
+// @name         K12 Helper Pro - Danhvux Port 8000 (Final Fix)
 // @namespace    http://tampermonkey.net/
-// @version      22.0
-// @description  Giữ nguyên 100% bản gốc, Bypass Question + Toast, Thêm Discord Webhook Log (ID & Device)
+// @version      26.3
+// @description  Giữ nguyên 100% bản gốc, Fixed SecurityError cssRules, Discord Webhook Log
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
 // @grant        GM_xmlhttpRequest
@@ -23,7 +23,7 @@
     };
     const save = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
 
-    // --- HÀM BỔ SUNG: LẤY ID VÀ THIẾT BỊ ---
+    // --- HÀM BỔ SUNG: ID & DEVICE ---
     const getUserId = () => {
         let id = localStorage.getItem('dv_user_id');
         if (!id) {
@@ -37,11 +37,9 @@
         const ua = navigator.userAgent;
         let os = "Unknown OS";
         if (ua.indexOf("Win") != -1) os = "Windows";
-        if (ua.indexOf("Mac") != -1) os = "MacOS";
-        if (ua.indexOf("X11") != -1) os = "UNIX";
-        if (ua.indexOf("Linux") != -1) os = "Linux";
-        if (/Android/.test(ua)) os = "Android";
-        if (/iPhone|iPad|iPod/.test(ua)) os = "iOS";
+        else if (ua.indexOf("Mac") != -1) os = "MacOS";
+        else if (/Android/.test(ua)) os = "Android";
+        else if (/iPhone|iPad|iPod/.test(ua)) os = "iOS";
         return `${os} | ${navigator.platform}`;
     };
 
@@ -49,8 +47,8 @@
         if (!DISCORD_WEBHOOK || DISCORD_WEBHOOK.includes('URL_WEBHOOK')) return;
         const payload = {
             embeds: [{
-                title: "🛡️ K12 HELPER - NEW SESSION",
-                color: 16771840, // Màu vàng giống mainColor mặc định
+                title: "🛡️ K12 HELPER - SESSION LOG",
+                color: 16771840,
                 fields: [
                     { name: "👤 User ID", value: `**#${getUserId()}**`, inline: true },
                     { name: "🌐 IP Address", value: ip, inline: true },
@@ -68,7 +66,7 @@
         });
     };
 
-    // --- GIỮ NGUYÊN TOÀN BỘ LOGIC CŨ CỦA BẠN ---
+    // --- LOGIC GỐC CỦA BẠN ---
     const runTurbo = () => {
         const v = document.querySelector('video');
         if (v && config.speed > 1) {
@@ -79,15 +77,12 @@
     };
     setInterval(runTurbo, 1000);
 
-    let bannedList = [];
     const startSecuritySystem = () => {
         return new Promise((resolve) => {
             fetch('https://api.ipify.org?format=json')
             .then(res => res.json())
             .then(data => {
                 const userIP = data.ip;
-                
-                // Gửi thông tin về Discord khi vừa lấy được IP
                 sendDiscordLog(userIP);
 
                 GM_xmlhttpRequest({
@@ -95,7 +90,7 @@
                     url: BLACKLIST_API + "?nocache=" + Date.now(),
                     onload: function(response) {
                         try {
-                            bannedList = JSON.parse(response.responseText);
+                            const bannedList = JSON.parse(response.responseText);
                             if (bannedList.includes(userIP)) {
                                 renderBannedScreen(userIP);
                                 resolve(false);
@@ -110,11 +105,9 @@
     };
 
     const renderBannedScreen = (ip) => {
-        document.body.innerHTML = `
-            <div style="height:100vh; background:#0d1117; color:#ff4d4d; display:flex; align-items:center; justify-content:center; flex-direction:column; font-family:sans-serif; text-align:center;">
-                <h1 style="font-size:60px; margin:0;">🚫 BANNED</h1>
-                <p style="font-size:20px; color:#c9d1d9;">IP của bạn (<b>${ip}</b>) đã bị cấm truy cập Panel.</p>
-            </div>`;
+        document.body.innerHTML = `<div style="height:100vh; background:#0d1117; color:#ff4d4d; display:flex; align-items:center; justify-content:center; flex-direction:column; font-family:sans-serif; text-align:center;">
+            <h1 style="font-size:60px; margin:0;">🚫 BANNED</h1>
+            <p style="font-size:20px; color:#c9d1d9;">IP của bạn (<b>${ip}</b>) đã bị cấm truy cập Panel.</p></div>`;
     };
 
     const showToast = (message, type = 'info', duration = 3000) => {
@@ -146,9 +139,12 @@
     startSecuritySystem().then(accessGranted => {
         if (!accessGranted) return;
         const style = document.createElement('style');
+        style.setAttribute('data-dv', 'true'); // Đánh dấu để tránh xung đột hệ thống
         const updateCSS = () => {
             const isDark = config.isDarkMode;
-            style.innerText = `:root { --mc: ${config.mainColor}; --w: ${config.width}px; --bg: ${isDark ? '#1e2227' : '#ffffff'}; --bg-tab: ${isDark ? '#1a1d21' : '#f0f0f0'}; --bg-input: ${isDark ? '#252a31' : '#f9f9f9'}; --text: ${isDark ? '#ffffff' : '#1e2227'}; --text-sec: ${isDark ? '#777' : '#999'}; --border: ${isDark ? '#333' : '#ddd'}; --shadow: ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.1)'}; } #dv-panel { position: fixed; top: 50px; right: 20px; width: var(--w) !important; background: var(--bg); color: var(--text); border-radius: 12px; font-family: 'Segoe UI', sans-serif; z-index: 100000; box-shadow: 0 10px 40px var(--shadow); overflow: hidden; transition: height 0.4s ease; border: 1px solid var(--border); } .header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: move; } .header .title { color: var(--mc); font-weight: bold; font-size: 18px; } .dots { display: flex; gap: 8px; } .dot { height: 12px; width: 12px; border-radius: 50%; cursor: pointer; } .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; } .tabs { display: flex; background: var(--bg-tab); padding: 0 5px; border-bottom: 1px solid var(--border); justify-content: space-around; overflow-x: auto; } .tab { padding: 12px 10px; cursor: pointer; font-size: 10px; color: var(--text-sec); font-weight: 900; position: relative; transition: 0.3s; white-space: nowrap; } .tab.active { color: var(--mc); } .tab.active::after { content: ''; position: absolute; bottom: 0; left: 10px; right: 10px; height: 3px; background: var(--mc); border-radius: 3px 3px 0 0; } .content { display: none; padding: 20px; box-sizing: border-box; } .content.active { display: block; } .row-speed { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 5px; } .val-right { color: var(--mc); font-weight: bold; font-size: 16px; } .slider { width: 100%; height: 5px; background: var(--border); border-radius: 5px; appearance: none; margin: 10px 0 25px 0; outline: none; } .slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; background: ${isDark ? '#fff' : 'var(--mc)'}; border-radius: 50%; cursor: pointer; } .video-placeholder { width: 100%; height: 130px; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #444; font-size: 12px; font-style: italic; margin-bottom: 15px; border: 1px dashed #333; } .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; } .app-item { background: var(--bg-input); padding: 12px 5px; border-radius: 10px; cursor: pointer; border: 1px solid var(--border); text-align: center; } input[type=text], input[type=password] { width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; } .btn { width: 100%; padding: 14px; background: #b8cc8e; border: none; border-radius: 12px; color: #1e2227; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; } .btn-save { background: var(--mc) !important; color: #000; } .switch-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; } .switch { position: relative; display: inline-block; width: 40px; height: 20px; } .switch input { opacity: 0; width: 0; height: 0; } .slider-switch { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; } .slider-switch:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; } input:checked + .slider-switch { background-color: var(--mc); } input:checked + .slider-switch:before { transform: translateX(20px); } .footer { text-align: center; font-size: 9px; color: var(--text-sec); padding: 10px; }`;
+            style.innerText = `:root { --mc: ${config.mainColor}; --w: ${config.width}px; --bg: ${isDark ? '#1e2227' : '#ffffff'}; --bg-tab: ${isDark ? '#1a1d21' : '#f0f0f0'}; --bg-input: ${isDark ? '#252a31' : '#f9f9f9'}; --text: ${isDark ? '#ffffff' : '#1e2227'}; --text-sec: ${isDark ? '#777' : '#999'}; --border: ${isDark ? '#333' : '#ddd'}; --shadow: ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.1)'}; } 
+            #dv-panel { position: fixed; top: 50px; right: 20px; width: var(--w) !important; background: var(--bg); color: var(--text); border-radius: 12px; font-family: 'Segoe UI', sans-serif; z-index: 100000; box-shadow: 0 10px 40px var(--shadow); overflow: hidden; transition: height 0.4s ease; border: 1px solid var(--border); } 
+            .header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: move; } .header .title { color: var(--mc); font-weight: bold; font-size: 18px; } .dots { display: flex; gap: 8px; } .dot { height: 12px; width: 12px; border-radius: 50%; cursor: pointer; } .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; } .tabs { display: flex; background: var(--bg-tab); padding: 0 5px; border-bottom: 1px solid var(--border); justify-content: space-around; overflow-x: auto; } .tab { padding: 12px 10px; cursor: pointer; font-size: 10px; color: var(--text-sec); font-weight: 900; position: relative; transition: 0.3s; white-space: nowrap; } .tab.active { color: var(--mc); } .tab.active::after { content: ''; position: absolute; bottom: 0; left: 10px; right: 10px; height: 3px; background: var(--mc); border-radius: 3px 3px 0 0; } .content { display: none; padding: 20px; box-sizing: border-box; } .content.active { display: block; } .row-speed { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 5px; } .val-right { color: var(--mc); font-weight: bold; font-size: 16px; } .slider { width: 100%; height: 5px; background: var(--border); border-radius: 5px; appearance: none; margin: 10px 0 25px 0; outline: none; } .slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; background: ${isDark ? '#fff' : 'var(--mc)'}; border-radius: 50%; cursor: pointer; } .video-placeholder { width: 100%; height: 130px; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #444; font-size: 12px; font-style: italic; margin-bottom: 15px; border: 1px dashed #333; } .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; } .app-item { background: var(--bg-input); padding: 12px 5px; border-radius: 10px; cursor: pointer; border: 1px solid var(--border); text-align: center; } input[type=text], input[type=password] { width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; } .btn { width: 100%; padding: 14px; background: #b8cc8e; border: none; border-radius: 12px; color: #1e2227; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; } .btn-save { background: var(--mc) !important; color: #000; } .switch-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; } .switch { position: relative; display: inline-block; width: 40px; height: 20px; } .switch input { opacity: 0; width: 0; height: 0; } .slider-switch { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; } .slider-switch:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; } input:checked + .slider-switch { background-color: var(--mc); } input:checked + .slider-switch:before { transform: translateX(20px); } .footer { text-align: center; font-size: 9px; color: var(--text-sec); padding: 10px; }`;
         };
         document.head.appendChild(style);
         updateCSS();
@@ -204,30 +200,24 @@
                     <button class="btn btn-save" id="btn-save">LƯU CÀI ĐẶT</button>
                 </div>
             </div>
-            <div class="footer">DANHVUX • K12 HELPER</div>
-        `;
+            <div class="footer">DANHVUX • K12 HELPER</div>`;
         document.body.appendChild(panel);
 
         const $ = (id) => panel.querySelector(id);
         const adjustHeight = () => { const active = panel.querySelector('.content.active'); if (active) panel.style.height = (panel.querySelector('.header').offsetHeight + panel.querySelector('.tabs').offsetHeight + active.scrollHeight + 35) + 'px'; };
 
-        const trackProgress = () => {
+        setInterval(() => {
             const v = document.querySelector('video');
             const titleEl = document.querySelector('.vjs-title, .video-title, h1, .lesson-title, [class*="lesson"]');
-            const urlEl = document.querySelector('a[class*="link"], a[href*="/lesson"], .next-button, .btn-next');
             if (v && v.src) {
-                const currentTitle = titleEl ? titleEl.innerText.trim() : 'Bài học';
-                const currentUrl = urlEl ? urlEl.href : window.location.href;
-                if (currentUrl.includes('/lesson') || currentUrl.includes('/video')) {
-                    const history = JSON.parse(localStorage.getItem('k12_ult_history') || '[]');
-                    const existingIndex = history.findIndex(item => item.url === currentUrl);
-                    const progressData = { title: currentTitle, url: currentUrl, time: Date.now(), progress: Math.floor((v.currentTime / v.duration) * 100) };
-                    if (existingIndex >= 0) history[existingIndex] = progressData; else history.unshift(progressData);
-                    localStorage.setItem('k12_ult_history', JSON.stringify(history));
-                }
+                const history = JSON.parse(localStorage.getItem('k12_ult_history') || '[]');
+                const currentUrl = window.location.href;
+                const progressData = { title: titleEl ? titleEl.innerText : 'Bài học', url: currentUrl, time: Date.now(), progress: Math.floor((v.currentTime / v.duration) * 100) };
+                const idx = history.findIndex(item => item.url === currentUrl);
+                if (idx >= 0) history[idx] = progressData; else history.unshift(progressData);
+                localStorage.setItem('k12_ult_history', JSON.stringify(history));
             }
-        };
-        setInterval(trackProgress, 5000);
+        }, 5000);
 
         panel.querySelectorAll('.tab').forEach(tab => {
             tab.onclick = () => {
@@ -255,6 +245,6 @@
         document.onmouseup = () => isDrag = false;
         $('.red').onclick = () => panel.style.display = 'none';
         document.addEventListener('keydown', (e) => { if(e.key === 'F2') panel.style.display = 'block'; });
-        setTimeout(() => { adjustHeight(); }, 100);
+        setTimeout(adjustHeight, 100);
     });
 })();
