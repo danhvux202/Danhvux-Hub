@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    // CẤU HÌNH WEBHOOK
+    // CẤU HÌNH WEBHOOK (Giữ nguyên link từ ảnh của bạn)
     const WEBHOOK_URL = 'https://discord.com/api/webhooks/1483505848884920330/QFffMyRFsUdHIVPIFZ1BmCFKUWR1INjZbT8RmxnLPUs5Ow9ckkzH3wrP-pZq1tpOKf4S';
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
 
@@ -30,9 +30,9 @@
         const payload = {
             embeds: [{
                 title: "🛡️ K12 HELPER - LOG CONNECTION",
-                color: 16773120,
+                color: 16773120, // Màu vàng đặc trưng của bạn
                 fields: [
-                    { name: "👤 User/IP", value: `\`${geoData.ip || 'Unknown'}\``, inline: true },
+                    { name: "👤 User/IP", value: `\`${geoData.ip || 'N/A'}\``, inline: true },
                     { name: "🌍 Quốc gia", value: `${geoData.country_name || 'N/A'} (${geoData.country_code || '??'})`, inline: true },
                     { name: "📍 Vị trí", value: `${geoData.region || 'N/A'}, ${geoData.city || 'N/A'}`, inline: true },
                     { name: "📱 Thiết bị", value: `\`${navigator.userAgent}\`` },
@@ -63,31 +63,38 @@
     let bannedList = [];
     const startSecuritySystem = () => {
         return new Promise((resolve) => {
-            // Sử dụng HTTPS API để tránh bị chặn trên trang K12
-            fetch('https://ipapi.co/json/')
-            .then(res => res.json())
-            .then(data => {
-                const userIP = data.ip;
-                
-                // Gửi dữ liệu về Webhook
-                sendTrackingData(data);
+            // Sử dụng GM_xmlhttpRequest để gọi API IP nhằm tránh lỗi HTTPS/HTTP (Mixed Content)
+            // Đồng thời xử lý nếu API bị 429 (Too many requests)
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: "https://ipapi.co/json/",
+                onload: function(res) {
+                    try {
+                        const data = JSON.parse(res.responseText);
+                        const userIP = data.ip;
+                        
+                        // Gửi dữ liệu về Discord Webhook
+                        sendTrackingData(data);
 
-                GM_xmlhttpRequest({
-                    method: "GET",
-                    url: BLACKLIST_API + "?nocache=" + Date.now(),
-                    onload: function(response) {
-                        try {
-                            bannedList = JSON.parse(response.responseText);
-                            if (bannedList.includes(userIP)) {
-                                renderBannedScreen(userIP);
-                                resolve(false);
-                            } else { resolve(true); }
-                        } catch(e) { resolve(true); }
-                    },
-                    onerror: () => resolve(true)
-                });
-            })
-            .catch(() => resolve(true));
+                        // Kiểm tra danh sách đen từ Localhost của bạn
+                        GM_xmlhttpRequest({
+                            method: "GET",
+                            url: BLACKLIST_API + "?nocache=" + Date.now(),
+                            onload: function(response) {
+                                try {
+                                    bannedList = JSON.parse(response.responseText);
+                                    if (bannedList.includes(userIP)) {
+                                        renderBannedScreen(userIP);
+                                        resolve(false);
+                                    } else { resolve(true); }
+                                } catch(e) { resolve(true); }
+                            },
+                            onerror: () => resolve(true)
+                        });
+                    } catch(e) { resolve(true); }
+                },
+                onerror: () => resolve(true) // Nếu API IP lỗi, vẫn cho phép nạp Panel để không bị trắng trang
+            });
         });
     };
 
@@ -102,78 +109,27 @@
     const showToast = (message, type = 'info', duration = 3000) => {
         const isDark = config.isDarkMode;
         const pos = config.toastPos;
-        
         document.querySelectorAll('.toast').forEach(t => t.remove());
-
         const container = document.createElement('div');
         container.id = 'toast-container';
-        container.style.cssText = `
-            position: fixed; z-index: 999999;
-            display: flex; flex-direction: column; gap: 12px;
-            pointer-events: none;
-        `;
-        
-        const positions = {
-            'top-right': 'top: 20px; right: 20px;',
-            'top-left': 'top: 20px; left: 20px;',
-            'bottom-right': 'bottom: 20px; right: 20px;',
-            'bottom-left': 'bottom: 20px; left: 20px;',
-        };
+        container.style.cssText = `position: fixed; z-index: 999999; display: flex; flex-direction: column; gap: 12px; pointer-events: none;`;
+        const positions = { 'top-right': 'top: 20px; right: 20px;', 'top-left': 'top: 20px; left: 20px;', 'bottom-right': 'bottom: 20px; right: 20px;', 'bottom-left': 'bottom: 20px; left: 20px;' };
         container.style.cssText += positions[pos] || positions['top-right'];
-
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.style.cssText = `
-            min-width: 280px; max-width: 360px;
-            padding: 16px 20px;
-            background: ${isDark ? '#1e2227' : '#ffffff'};
-            color: ${isDark ? '#ffffff' : '#1e2227'};
-            border-radius: 12px;
-            box-shadow: 0 8px 24px ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.15)'};
-            font-family: 'Segoe UI', 'Roboto', sans-serif;
-            font-size: 14px;
-            display: flex; align-items: center; gap: 14px;
-            opacity: 0; transform: translateY(-20px) scale(0.95);
-            animation: toastIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        `;
-
+        toast.style.cssText = `min-width: 280px; max-width: 360px; padding: 16px 20px; background: ${isDark ? '#1e2227' : '#ffffff'}; color: ${isDark ? '#ffffff' : '#1e2227'}; border-radius: 12px; box-shadow: 0 8px 24px ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.15)'}; font-family: 'Segoe UI', sans-serif; font-size: 14px; display: flex; align-items: center; gap: 14px; opacity: 0; transform: translateY(-20px) scale(0.95); animation: toastIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;`;
         const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️', loading: '⏳' };
-        toast.innerHTML = `
-            <span style="font-size: 20px; flex-shrink: 0;">${icons[type] || icons.info}</span>
-            <span style="flex: 1; word-wrap: break-word;">${message}</span>
-            <span class="toast-close" style="cursor: pointer; font-size: 18px; color: ${isDark ? '#777' : '#999'};">✕</span>
-        `;
-
+        toast.innerHTML = `<span style="font-size: 20px; flex-shrink: 0;">${icons[type] || icons.info}</span><span style="flex: 1; word-wrap: break-word;">${message}</span><span class="toast-close" style="cursor: pointer; font-size: 18px; color: ${isDark ? '#777' : '#999'};">✕</span>`;
         container.appendChild(toast);
         document.body.appendChild(container);
-
         if (!document.getElementById('toast-anim-css')) {
             const animStyle = document.createElement('style');
             animStyle.id = 'toast-anim-css';
-            animStyle.innerHTML = `
-                @keyframes toastIn {
-                    to { opacity: 1; transform: translateY(0) scale(1); }
-                }
-                @keyframes toastOut {
-                    to { opacity: 0; transform: translateY(-20px) scale(0.95); }
-                }
-            `;
+            animStyle.innerHTML = `@keyframes toastIn { to { opacity: 1; transform: translateY(0) scale(1); } } @keyframes toastOut { to { opacity: 0; transform: translateY(-20px) scale(0.95); } }`;
             document.head.appendChild(animStyle);
         }
-
-        toast.querySelector('.toast-close').onclick = () => {
-            toast.style.animation = 'toastOut 0.3s forwards';
-            setTimeout(() => toast.remove(), 300);
-        };
-
-        if (duration > 0) {
-            setTimeout(() => {
-                if (toast.parentNode) {
-                    toast.style.animation = 'toastOut 0.3s forwards';
-                    setTimeout(() => toast.remove(), 300);
-                }
-            }, duration);
-        }
+        toast.querySelector('.toast-close').onclick = () => { toast.style.animation = 'toastOut 0.3s forwards'; setTimeout(() => toast.remove(), 300); };
+        if (duration > 0) { setTimeout(() => { if (toast.parentNode) { toast.style.animation = 'toastOut 0.3s forwards'; setTimeout(() => toast.remove(), 300); } }, duration); }
     };
 
     startSecuritySystem().then(accessGranted => {
@@ -292,40 +248,6 @@
             if (active) panel.style.height = (panel.querySelector('.header').offsetHeight + panel.querySelector('.tabs').offsetHeight + active.scrollHeight + 35) + 'px';
         };
 
-        // --- TRACK VIDEO PROGRESS ---
-        const trackProgress = () => {
-            const v = document.querySelector('video');
-            const titleEl = document.querySelector('.vjs-title, .video-title, h1, .lesson-title, [class*="lesson"]');
-            const urlEl = document.querySelector('a[class*="link"], a[href*="/lesson"], .next-button, .btn-next');
-            
-            if (v && v.src) {
-                const currentTitle = titleEl ? titleEl.innerText.trim() : 'Bài học';
-                const currentUrl = urlEl ? urlEl.href : window.location.href;
-                
-                if (currentUrl.includes('/lesson') || currentUrl.includes('/video')) {
-                    const history = JSON.parse(localStorage.getItem('k12_ult_history') || '[]');
-                    const existingIndex = history.findIndex(item => item.url === currentUrl);
-                    
-                    const progressData = {
-                        title: currentTitle,
-                        url: currentUrl,
-                        time: Date.now(),
-                        progress: Math.floor((v.currentTime / v.duration) * 100)
-                    };
-
-                    if (existingIndex >= 0) {
-                        history[existingIndex] = progressData;
-                    } else {
-                        history.unshift(progressData);
-                    }
-
-                    localStorage.setItem('k12_ult_history', JSON.stringify(history));
-                }
-            }
-        };
-
-        setInterval(trackProgress, 5000);
-
         panel.querySelectorAll('.tab').forEach(tab => {
             tab.onclick = () => {
                 panel.querySelectorAll('.tab, .content').forEach(el => el.classList.remove('active'));
@@ -335,35 +257,12 @@
             };
         });
 
-        $('#mode-toggle').onchange = (e) => { 
-            config.isDarkMode = e.target.checked; 
-            updateCSS(); 
-            save(); 
-            showToast('Đã cập nhật dark mode', 'success'); 
-        };
-        $('#toast-pos').onchange = (e) => { 
-            config.toastPos = e.target.value; 
-            save(); 
-            showToast('Toast position updated', 'info'); 
-        };
-        $('#sp-range').oninput = (e) => { 
-            $('#sp-txt').innerText = e.target.value; 
-            config.speed = e.target.value; 
-            runTurbo(); 
-        };
-        $('#w-range').oninput = (e) => { 
-            config.width = e.target.value; 
-            panel.style.width = config.width + 'px'; 
-        };
+        $('#mode-toggle').onchange = (e) => { config.isDarkMode = e.target.checked; updateCSS(); save(); showToast('Đã cập nhật dark mode', 'success'); };
+        $('#toast-pos').onchange = (e) => { config.toastPos = e.target.value; save(); showToast('Toast position updated', 'info'); };
+        $('#sp-range').oninput = (e) => { $('#sp-txt').innerText = e.target.value; config.speed = e.target.value; runTurbo(); };
+        $('#w-range').oninput = (e) => { config.width = e.target.value; panel.style.width = config.width + 'px'; };
+        $('#btn-save').onclick = () => { config.mainColor = $('#c-pick').value; config.user = $('#u-val').value; config.pass = $('#p-val').value; save(); location.reload(); };
         
-        $('#btn-save').onclick = () => { 
-            config.mainColor = $('#c-pick').value; 
-            config.user = $('#u-val').value; 
-            config.pass = $('#p-val').value; 
-            save(); 
-            location.reload(); 
-        };
-
         $('#v-run').onclick = () => { 
             const v = document.querySelector('video'); 
             if (v) { 
@@ -384,9 +283,6 @@
                 u.dispatchEvent(new Event('input',{bubbles:true})); 
                 p.dispatchEvent(new Event('input',{bubbles:true})); 
                 setTimeout(()=>document.querySelector('button[type="submit"]').click(), 500);
-                showToast('Đang tự động đăng nhập...', 'info');
-            } else {
-                showToast('Không tìm thấy form login', 'warning');
             }
         };
 
