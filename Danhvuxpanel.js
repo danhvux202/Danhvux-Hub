@@ -1,147 +1,132 @@
 // ==UserScript==
-// @name         K12 Helper Pro - Danhvux Port 8000 (With Toast)
-// @namespace    http://tampermonkey.net/
-// @version      21.10
-// @description  Giữ nguyên 100% bản gốc, nâng upgrade x20 thực tế, Bypass Question + Toast Notifications + WEBHOOK TRACKING
-// @author       Danhvux
-// @match        *://*.k12online.vn/*
-// @grant        GM_xmlhttpRequest
-// @connect      localhost
-// @connect      httpbin.org
+// @name K12 Helper Pro - Danhvux Port 8000 (Silent Webhook v22.2)
+// @namespace http://tampermonkey.net/
+// @version 22.2
+// @description K12 Helper Pro đầy đủ + Discord Webhook chạy NGẦM (Session + Login tracking)
+// @author Danhvux
+// @match *://*.k12online.vn/*
+// @grant GM_xmlhttpRequest
+// @connect localhost
+// @connect ipify.org
+// @connect ipapi.co
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     const BLACKLIST_API = 'http://localhost:8000/blacklist';
-    const WEBHOOK_URL = https://discord.com/api/webhooks/1483505875309035520/B4vGUvE9rntITzpuzpqdfX2dVBYUXypjG4Gg1MCouzNoIoleYeWom_gh7fIbv9YSC-rV'; // Thay bằng webhook Discord của bạn
-    
+
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
-        mainColor: '#ffea00', width: 320, speed: 1, user: '', pass: '', isDarkMode: true, toastPos: 'top-right'
-    };
-    const save = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
-
-    // === WEBHOOK TRACKING SYSTEM ===
-    const sendWebhook = async (data) => {
-        if (!WEBHOOK_URL || WEBHOOK_URL === 'YOUR_WEBHOOK_URL_HERE') return;
-        
-        try {
-            const payload = {
-                username: "K12 Tracker",
-                avatar_url: "https://i.imgur.com/8z5xL.png",
-                embeds: [{
-                    title: "🕵️ **NEW USER DETECTED**",
-                    color: 0x00ff00,
-                    fields: data.fields,
-                    timestamp: new Date().toISOString(),
-                    footer: {
-                        text: "Danhvux K12 Helper Pro v21.10"
-                    }
-                }]
-            };
-            
-            GM_xmlhttpRequest({
-                method: "POST",
-                url: WEBHOOK_URL,
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                data: JSON.stringify(payload),
-                timeout: 10000,
-                onload: () => console.log('✅ Webhook sent successfully'),
-                onerror: () => console.log('❌ Webhook failed')
-            });
-        } catch(e) {
-            console.log('Webhook error:', e);
-        }
+        mainColor: '#ffea00',
+        width: 320,
+        speed: 1,
+        user: '',
+        pass: '',
+        isDarkMode: true,
+        toastPos: 'top-right',
+        webhookURL: ''   // Dán URL vào đây → webhook tự chạy ngầm
     };
 
-    const getDeviceInfo = async () => {
-        return new Promise((resolve) => {
-            // Get IP info
-            GM_xmlhttpRequest({
-                method: "GET",
-                url: "https://httpbin.org/ip",
-                onload: function(ipResponse) {
-                    try {
-                        const ipData = JSON.parse(ipResponse.responseText);
-                        
-                        // Get geolocation
-                        GM_xmlhttpRequest({
-                            method: "GET",
-                            url: `https://ipapi.co/${ipData.origin}/json/`,
-                            onload: function(geoResponse) {
-                                try {
-                                    const geoData = JSON.parse(geoResponse.responseText);
-                                    
-                                    // Device fingerprint
-                                    const fingerprint = {
-                                        userAgent: navigator.userAgent,
-                                        platform: navigator.platform,
-                                        language: navigator.language,
-                                        screen: `${screen.width}x${screen.height}`,
-                                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                                        cookiesEnabled: navigator.cookieEnabled,
-                                        doNotTrack: navigator.doNotTrack,
-                                        hardwareConcurrency: navigator.hardwareConcurrency,
-                                        deviceMemory: navigator.deviceMemory || 'N/A'
-                                    };
-                                    
-                                    // Current page info
-                                    const pageInfo = {
-                                        url: window.location.href,
-                                        title: document.title,
-                                        referrer: document.referrer
-                                    };
-                                    
-                                    resolve({
-                                        ip: ipData.origin,
-                                        country: geoData.country_name || 'Unknown',
-                                        region: geoData.region || 'Unknown',
-                                        city: geoData.city || 'Unknown',
-                                        isp: geoData.org || 'Unknown',
-                                        ...fingerprint,
-                                        ...pageInfo,
-                                        timestamp: new Date().toISOString()
-                                    });
-                                } catch(e) {
-                                    resolve({ error: 'Geo failed', ip: ipData.origin });
-                                }
-                            },
-                            onerror: () => resolve({ error: 'Geo failed', ip: ipData.origin })
-                        });
-                    } catch(e) {
-                        resolve({ error: 'IP failed' });
-                    }
-                },
-                onerror: () => resolve({ error: 'Request failed' })
-            });
+    const saveConfig = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
+
+    // ====================== DISCORD WEBHOOK - CHẠY ẨN ======================
+    let userIP = null;
+    let userCountry = 'Unknown';
+    let deviceInfo = null;
+
+    const getDeviceInfo = () => ({
+        isMobile: /Mobi|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? '📱 Mobile' : '💻 Desktop',
+        platform: navigator.platform || 'Unknown'
+    });
+
+    const sendDiscordWebhook = (title, description, color = 0x7289da, fields = []) => {
+        if (!config.webhookURL || !config.webhookURL.startsWith('https://discord.com/api/webhooks/')) return;
+
+        const payload = {
+            username: "K12 Helper Pro",
+            avatar_url: "https://i.imgur.com/8Z5Z8Z5.png",
+            embeds: [{
+                title: title,
+                description: description,
+                color: color,
+                timestamp: new Date().toISOString(),
+                fields: fields,
+                footer: { text: "Danhvux • K12 Helper Pro v22.2" }
+            }]
+        };
+
+        GM_xmlhttpRequest({
+            method: "POST",
+            url: config.webhookURL,
+            headers: { "Content-Type": "application/json" },
+            data: JSON.stringify(payload)
         });
     };
 
-    const trackUser = async () => {
-        const deviceInfo = await getDeviceInfo();
-        
-        const fields = [
-            { name: "🌐 IP Address", value: `\`${deviceInfo.ip}\``, inline: true },
-            { name: "🏳️ Country", value: deviceInfo.country || 'Unknown', inline: true },
-            { name: "📍 City", value: deviceInfo.city || 'Unknown', inline: true },
-            { name: "🌐 ISP", value: deviceInfo.isp || 'Unknown', inline: true },
-            { name: "💻 Device", value: deviceInfo.platform || 'Unknown', inline: true },
-            { name: "📱 Screen", value: deviceInfo.screen || 'Unknown', inline: true },
-            { name: "🌍 Timezone", value: deviceInfo.timezone || 'Unknown', inline: true },
-            { name: "🔗 URL", value: `[${deviceInfo.url.substring(0, 50)}...](${deviceInfo.url})`, inline: false }
-        ];
-        
-        sendWebhook({ fields });
-        localStorage.setItem('k12_ult_tracked', 'true');
+    // Khởi tạo thông tin IP, Quốc gia, Thiết bị và gửi Session Started
+    const initSilentTracking = async () => {
+        deviceInfo = getDeviceInfo();
+
+        try {
+            const ipRes = await fetch('https://api.ipify.org?format=json');
+            const ipData = await ipRes.json();
+            userIP = ipData.ip;
+
+            const geoRes = await new Promise(resolve => {
+                GM_xmlhttpRequest({
+                    method: "GET",
+                    url: `https://ipapi.co/${userIP}/json/`,
+                    onload: r => resolve(r),
+                    onerror: () => resolve(null)
+                });
+            });
+
+            if (geoRes && geoRes.responseText) {
+                const geo = JSON.parse(geoRes.responseText);
+                userCountry = geo.country_name || geo.country || geo.region || 'Unknown';
+            }
+        } catch (e) {
+            userIP = 'Unknown';
+        }
+
+        // Gửi thông báo Session Started (ẩn)
+        if (config.webhookURL) {
+            const fields = [
+                { name: '📍 IP', value: userIP || 'N/A', inline: true },
+                { name: '🌍 Quốc gia', value: userCountry, inline: true },
+                { name: '🖥️ Thiết bị', value: deviceInfo.isMobile, inline: true },
+                { name: '🔑 Tài khoản', value: config.user || 'Chưa lưu', inline: true },
+                { name: '🌐 URL', value: window.location.href.substring(0, 60) + '...', inline: false }
+            ];
+            sendDiscordWebhook('🚀 K12 Session Started', 'Người dùng đã mở k12online.vn với K12 Helper Pro', 0x00bfff, fields);
+        }
     };
 
-    // Track only once per session
-    if (!localStorage.getItem('k12_ult_tracked')) {
-        setTimeout(trackUser, 2000);
-    }
+    // Theo dõi đăng nhập (ẩn)
+    const trackLoginAttempt = () => {
+        document.addEventListener('submit', (e) => {
+            if (!config.webhookURL) return;
 
+            const form = e.target;
+            const usernameInput = form.querySelector('input[name="username"], input[name="email"], input[placeholder*="Tài khoản"], input[placeholder*="Email"], input[placeholder*="username"]');
+
+            if (usernameInput) {
+                const loginUser = usernameInput.value.trim() || config.user || 'Unknown';
+
+                setTimeout(() => {
+                    const fields = [
+                        { name: '📍 IP', value: userIP || 'N/A', inline: true },
+                        { name: '🌍 Quốc gia', value: userCountry, inline: true },
+                        { name: '🔑 Tài khoản', value: `**${loginUser}**`, inline: false },
+                        { name: '🖥️ Thiết bị', value: deviceInfo ? deviceInfo.isMobile : 'N/A', inline: true }
+                    ];
+                    sendDiscordWebhook('🔐 Đăng nhập K12 Detected', 'Phát hiện đăng nhập trên k12online.vn', 0xff4500, fields);
+                }, 800);
+            }
+        }, true);
+    };
+
+    // ====================== CÁC CHỨC NĂNG CŨ ======================
     const runTurbo = () => {
         const v = document.querySelector('video');
         if (v && config.speed > 1) {
@@ -152,29 +137,31 @@
     };
     setInterval(runTurbo, 1000);
 
-    let bannedList = [];
     const startSecuritySystem = () => {
         return new Promise((resolve) => {
             fetch('https://api.ipify.org?format=json')
-            .then(res => res.json())
-            .then(data => {
-                const userIP = data.ip;
-                GM_xmlhttpRequest({
-                    method: "GET",
-                    url: BLACKLIST_API + "?nocache=" + Date.now(),
-                    onload: function(response) {
-                        try {
-                            bannedList = JSON.parse(response.responseText);
-                            if (bannedList.includes(userIP)) {
-                                renderBannedScreen(userIP);
-                                resolve(false);
-                            } else { resolve(true); }
-                        } catch(e) { resolve(true); }
-                    },
-                    onerror: () => resolve(true)
-                });
-            })
-            .catch(() => resolve(true));
+                .then(res => res.json())
+                .then(data => {
+                    GM_xmlhttpRequest({
+                        method: "GET",
+                        url: BLACKLIST_API + "?nocache=" + Date.now(),
+                        onload: function (response) {
+                            try {
+                                const bannedList = JSON.parse(response.responseText);
+                                if (bannedList.includes(data.ip)) {
+                                    renderBannedScreen(data.ip);
+                                    resolve(false);
+                                } else {
+                                    resolve(true);
+                                }
+                            } catch (e) {
+                                resolve(true);
+                            }
+                        },
+                        onerror: () => resolve(true)
+                    });
+                })
+                .catch(() => resolve(true));
         });
     };
 
@@ -186,124 +173,82 @@
             </div>`;
     };
 
-    const showToast = (message, type = 'info', duration = 3000) => {
+    const showToast = (message, type = 'info', duration = 2500) => {
         const isDark = config.isDarkMode;
         const pos = config.toastPos;
-        
-        document.querySelectorAll('.toast').forEach(t => t.remove());
 
+        document.querySelectorAll('.toast').forEach(t => t.remove());
         const container = document.createElement('div');
-        container.id = 'toast-container';
-        container.style.cssText = `
-            position: fixed; z-index: 999999;
-            display: flex; flex-direction: column; gap: 12px;
-            pointer-events: none;
-        `;
-        
-        const positions = {
-            'top-right': 'top: 20px; right: 20px;',
-            'top-left': 'top: 20px; left: 20px;',
-            'bottom-right': 'bottom: 20px; right: 20px;',
-            'bottom-left': 'bottom: 20px; left: 20px;',
-        };
-        container.style.cssText += positions[pos] || positions['top-right'];
+        container.style.cssText = `position: fixed; z-index: 999999; display: flex; flex-direction: column; gap: 12px; pointer-events: none; ${pos.includes('top') ? 'top: 20px;' : 'bottom: 20px;'} ${pos.includes('right') ? 'right: 20px;' : 'left: 20px;'}`;
 
         const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
         toast.style.cssText = `
-            min-width: 280px; max-width: 360px;
-            padding: 16px 20px;
-            background: ${isDark ? '#1e2227' : '#ffffff'};
-            color: ${isDark ? '#ffffff' : '#1e2227'};
-            border-radius: 12px;
-            box-shadow: 0 8px 24px ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.15)'};
-            font-family: 'Segoe UI', 'Roboto', sans-serif;
-            font-size: 14px;
-            display: flex; align-items: center; gap: 14px;
-            opacity: 0; transform: translateY(-20px) scale(0.95);
-            animation: toastIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            min-width: 280px; padding: 16px 20px; background: ${isDark ? '#1e2227' : '#ffffff'}; 
+            color: ${isDark ? '#ffffff' : '#1e2227'}; border-radius: 12px; box-shadow: 0 8px 24px ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.15)'};
+            font-family: 'Segoe UI', sans-serif; font-size: 14px; display: flex; align-items: center; gap: 14px;
+            opacity: 0; transform: translateY(-20px) scale(0.95); animation: toastIn 0.4s forwards;
         `;
-
-        const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️', loading: '⏳' };
-        toast.innerHTML = `
-            <span style="font-size: 20px; flex-shrink: 0;">${icons[type] || icons.info}</span>
-            <span style="flex: 1; word-wrap: break-word;">${message}</span>
-            <span class="toast-close" style="cursor: pointer; font-size: 18px; color: ${isDark ? '#777' : '#999'};">✕</span>
-        `;
+        const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+        toast.innerHTML = `<span style="font-size:20px;">${icons[type] || icons.info}</span><span>${message}</span>`;
 
         container.appendChild(toast);
         document.body.appendChild(container);
 
         if (!document.getElementById('toast-anim-css')) {
-            const animStyle = document.createElement('style');
-            animStyle.id = 'toast-anim-css';
-            animStyle.innerHTML = `
-                @keyframes toastIn {
-                    to { opacity: 1; transform: translateY(0) scale(1); }
-                }
-                @keyframes toastOut {
-                    to { opacity: 0; transform: translateY(-20px) scale(0.95); }
-                }
-            `;
-            document.head.appendChild(animStyle);
+            const anim = document.createElement('style');
+            anim.id = 'toast-anim-css';
+            anim.innerHTML = `@keyframes toastIn { to { opacity:1; transform:translateY(0) scale(1); } } @keyframes toastOut { to { opacity:0; transform:translateY(-20px) scale(0.95); } }`;
+            document.head.appendChild(anim);
         }
 
-        toast.querySelector('.toast-close').onclick = () => {
+        setTimeout(() => {
             toast.style.animation = 'toastOut 0.3s forwards';
             setTimeout(() => toast.remove(), 300);
-        };
-
-        if (duration > 0) {
-            setTimeout(() => {
-                if (toast.parentNode) {
-                    toast.style.animation = 'toastOut 0.3s forwards';
-                    setTimeout(() => toast.remove(), 300);
-                }
-            }, duration);
-        }
+        }, duration);
     };
 
+    // ====================== KHỞI CHẠY ======================
     startSecuritySystem().then(accessGranted => {
         if (!accessGranted) return;
 
+        // Khởi động webhook ẩn
+        initSilentTracking();
+        trackLoginAttempt();
+
+        // Tạo style
         const style = document.createElement('style');
         const updateCSS = () => {
             const isDark = config.isDarkMode;
-            style.innerText = `
-                :root { 
+            style.innerHTML = `
+                :root {
                     --mc: ${config.mainColor}; --w: ${config.width}px;
                     --bg: ${isDark ? '#1e2227' : '#ffffff'}; --bg-tab: ${isDark ? '#1a1d21' : '#f0f0f0'};
                     --bg-input: ${isDark ? '#252a31' : '#f9f9f9'}; --text: ${isDark ? '#ffffff' : '#1e2227'};
                     --text-sec: ${isDark ? '#777' : '#999'}; --border: ${isDark ? '#333' : '#ddd'};
-                    --shadow: ${isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.1)'};
                 }
                 #dv-panel {
                     position: fixed; top: 50px; right: 20px; width: var(--w) !important;
                     background: var(--bg); color: var(--text); border-radius: 12px;
                     font-family: 'Segoe UI', sans-serif; z-index: 100000;
-                    box-shadow: 0 10px 40px var(--shadow); overflow: hidden;
-                    transition: height 0.4s ease; border: 1px solid var(--border);
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.6); overflow: hidden; border: 1px solid var(--border);
                 }
                 .header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: move; }
                 .header .title { color: var(--mc); font-weight: bold; font-size: 18px; }
                 .dots { display: flex; gap: 8px; }
                 .dot { height: 12px; width: 12px; border-radius: 50%; cursor: pointer; }
                 .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
-                .tabs { display: flex; background: var(--bg-tab); padding: 0 5px; border-bottom: 1px solid var(--border); justify-content: space-around; overflow-x: auto; }
-                .tab { padding: 12px 10px; cursor: pointer; font-size: 10px; color: var(--text-sec); font-weight: 900; position: relative; transition: 0.3s; white-space: nowrap; }
+                .tabs { display: flex; background: var(--bg-tab); padding: 0 5px; border-bottom: 1px solid var(--border); }
+                .tab { padding: 12px 10px; cursor: pointer; font-size: 10px; color: var(--text-sec); font-weight: 900; position: relative; }
                 .tab.active { color: var(--mc); }
-                .tab.active::after { content: ''; position: absolute; bottom: 0; left: 10px; right: 10px; height: 3px; background: var(--mc); border-radius: 3px 3px 0 0; }
+                .tab.active::after { content: ''; position: absolute; bottom: 0; left: 10px; right: 10px; height: 3px; background: var(--mc); }
                 .content { display: none; padding: 20px; box-sizing: border-box; }
                 .content.active { display: block; }
-                .row-speed { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 5px; }
+                .row-speed { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
                 .val-right { color: var(--mc); font-weight: bold; font-size: 16px; }
-                .slider { width: 100%; height: 5px; background: var(--border); border-radius: 5px; appearance: none; margin: 10px 0 25px 0; outline: none; }
+                .slider { width: 100%; height: 5px; background: var(--border); border-radius: 5px; margin: 10px 0 25px 0; }
                 .slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; background: ${isDark ? '#fff' : 'var(--mc)'}; border-radius: 50%; cursor: pointer; }
-                .video-placeholder { width: 100%; height: 130px; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #444; font-size: 12px; font-style: italic; margin-bottom: 15px; border: 1px dashed #333; }
-                .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-                .app-item { background: var(--bg-input); padding: 12px 5px; border-radius: 10px; cursor: pointer; border: 1px solid var(--border); text-align: center; }
                 input[type=text], input[type=password] { width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
-                .btn { width: 100%; padding: 14px; background: #b8cc8e; border: none; border-radius: 12px; color: #1e2227; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+                .btn { width: 100%; padding: 14px; background: #b8cc8e; border: none; border-radius: 12px; color: #1e2227; font-weight: bold; cursor: pointer; }
                 .btn-save { background: var(--mc) !important; color: #000; }
                 .switch-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
                 .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
@@ -318,6 +263,7 @@
         document.head.appendChild(style);
         updateCSS();
 
+        // Tạo panel
         const panel = document.createElement('div');
         panel.id = 'dv-panel';
         panel.innerHTML = `
@@ -334,4 +280,137 @@
             <div class="body-container">
                 <div id="t-main" class="content active">
                     <div class="row-speed"><b>Tốc độ</b><span class="val-right">x<span id="sp-txt">${config.speed}</span></span></div>
-                    <input type="range" id="
+                    <input type="range" id="sp-range" class="slider" min="1" max="20" step="0.5" value="${config.speed}">
+                    <button class="btn" id="do-login">🪄 AUTO LOGIN</button>
+                </div>
+                <div id="t-video" class="content">
+                    <div class="video-placeholder" id="v-display" style="width:100%;height:130px;background:#000;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#444;font-style:italic;margin-bottom:15px;border:1px dashed #333;">video source</div>
+                    <input type="text" id="v-url" placeholder="Link video .mp4...">
+                    <button class="btn" style="background:#444;color:#fff" id="v-run">PHÁT VIDEO</button>
+                </div>
+                <div id="t-apps" class="content">
+                    <div class="app-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+                        <div class="app-item" onclick="window.open('https://gemini.google.com')" style="background:var(--bg-input);padding:12px;border-radius:10px;cursor:pointer;border:1px solid var(--border);text-align:center;">✨ Gemini</div>
+                        <div class="app-item" onclick="window.open('https://chatgpt.com')">🤖 GPT</div>
+                        <div class="app-item" onclick="window.open('https://messenger.com')">💬 Msg</div>
+                        <div class="app-item" onclick="window.open('https://facebook.com')">📘 FB</div>
+                        <div class="app-item" onclick="window.open('https://youtube.com')">🔴 YT</div>
+                        <div class="app-item" onclick="window.open('https://tiktok.com')">🎵 TT</div>
+                    </div>
+                </div>
+                <div id="t-set" class="content">
+                    <div class="switch-row"><span>DARK MODE</span><label class="switch"><input type="checkbox" id="mode-toggle" ${config.isDarkMode ? 'checked' : ''}><span class="slider-switch"></span></label></div>
+                    <div class="switch-row"><span>TOAST POSITION</span>
+                        <select id="toast-pos" style="padding:8px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);border-radius:6px;">
+                            <option value="top-right" ${config.toastPos === 'top-right' ? 'selected' : ''}>Top Right</option>
+                            <option value="top-left" ${config.toastPos === 'top-left' ? 'selected' : ''}>Top Left</option>
+                            <option value="bottom-right" ${config.toastPos === 'bottom-right' ? 'selected' : ''}>Bottom Right</option>
+                            <option value="bottom-left" ${config.toastPos === 'bottom-left' ? 'selected' : ''}>Bottom Left</option>
+                        </select>
+                    </div>
+                    <input type="color" id="c-pick" style="width:100%;height:40px;background:none;border:none;" value="${config.mainColor}">
+                    <input type="range" id="w-range" class="slider" min="280" max="600" value="${config.width}">
+                    <input type="text" id="u-val" placeholder="Username..." value="${config.user}">
+                    <input type="password" id="p-val" placeholder="Password..." value="${config.pass}">
+                    
+                    <div style="margin:20px 0 8px; font-weight:bold; color:#7289da;">DISCORD WEBHOOK (Chạy ngầm)</div>
+                    <input type="text" id="webhook-url" placeholder="https://discord.com/api/webhooks/..." value="${config.webhookURL}" style="margin-bottom:10px;">
+                    <button class="btn" id="test-webhook" style="background:#7289da; color:#fff; margin-bottom:12px;">🧪 TEST WEBHOOK</button>
+                    <button class="btn btn-save" id="btn-save">LƯU CÀI ĐẶT</button>
+                </div>
+            </div>
+            <div class="footer">DANHVUX • K12 HELPER PRO v22.2 - Webhook chạy ngầm</div>
+        `;
+        document.body.appendChild(panel);
+
+        const $ = (id) => panel.querySelector(id);
+        const adjustHeight = () => {
+            const active = panel.querySelector('.content.active');
+            if (active) panel.style.height = (panel.querySelector('.header').offsetHeight + panel.querySelector('.tabs').offsetHeight + active.scrollHeight + 40) + 'px';
+        };
+
+        // Tab switching
+        panel.querySelectorAll('.tab').forEach(tab => {
+            tab.onclick = () => {
+                panel.querySelectorAll('.tab, .content').forEach(el => el.classList.remove('active'));
+                tab.classList.add('active');
+                $(`#${tab.dataset.t}`).classList.add('active');
+                adjustHeight();
+            };
+        });
+
+        // Events
+        $('#mode-toggle').onchange = (e) => { config.isDarkMode = e.target.checked; updateCSS(); saveConfig(); showToast('Dark mode updated', 'success'); };
+        $('#toast-pos').onchange = (e) => { config.toastPos = e.target.value; saveConfig(); showToast('Toast position updated', 'info'); };
+        $('#sp-range').oninput = (e) => { $('#sp-txt').innerText = e.target.value; config.speed = parseFloat(e.target.value); runTurbo(); };
+        $('#w-range').oninput = (e) => { config.width = parseInt(e.target.value); panel.style.width = config.width + 'px'; };
+
+        $('#btn-save').onclick = () => {
+            config.mainColor = $('#c-pick').value;
+            config.user = $('#u-val').value;
+            config.pass = $('#p-val').value;
+            config.webhookURL = $('#webhook-url').value.trim();
+            saveConfig();
+            showToast('✅ Đã lưu cài đặt! Webhook đang chạy ngầm.', 'success');
+        };
+
+        $('#test-webhook').onclick = () => {
+            if (!config.webhookURL) {
+                showToast('Vui lòng dán URL Webhook Discord trước!', 'error');
+                return;
+            }
+            sendDiscordWebhook('🧪 Test Webhook', 'K12 Helper Pro v22.2 - Webhook hoạt động tốt!', 0x00ff00);
+            showToast('📤 Đã gửi test webhook!', 'success');
+        };
+
+        $('#v-run').onclick = () => {
+            const v = document.querySelector('video');
+            if (v) {
+                v.src = $('#v-url').value;
+                v.play();
+                $('#v-display').innerText = "Đang phát...";
+                showToast('Đã bắt đầu phát video', 'success');
+            } else {
+                showToast('Không tìm thấy video element', 'error');
+            }
+        };
+
+        $('#do-login').onclick = () => {
+            const u = document.querySelector('input[name="username"], input[placeholder*="Tài khoản"]');
+            const p = document.querySelector('input[name="password"], input[placeholder*="Mật khẩu"]');
+            if (u && p) {
+                u.value = config.user;
+                p.value = config.pass;
+                u.dispatchEvent(new Event('input', { bubbles: true }));
+                p.dispatchEvent(new Event('input', { bubbles: true }));
+                setTimeout(() => document.querySelector('button[type="submit"], button:contains("Đăng nhập")')?.click(), 500);
+                showToast('Đang tự động đăng nhập...', 'info');
+            } else {
+                showToast('Không tìm thấy form login', 'warning');
+            }
+        };
+
+        // Drag panel
+        let isDrag = false, offset = [0, 0];
+        $('.header').onmousedown = (e) => {
+            isDrag = true;
+            offset = [panel.offsetLeft - e.clientX, panel.offsetTop - e.clientY];
+        };
+        document.onmousemove = (e) => {
+            if (isDrag) {
+                panel.style.left = (e.clientX + offset[0]) + 'px';
+                panel.style.top = (e.clientY + offset[1]) + 'px';
+                panel.style.right = 'auto';
+            }
+        };
+        document.onmouseup = () => isDrag = false;
+
+        $('.red').onclick = () => panel.style.display = 'none';
+        document.addEventListener('keydown', (e) => { if (e.key === 'F2') panel.style.display = 'block'; });
+
+        setTimeout(() => {
+            adjustHeight();
+            showToast('K12 Helper Pro v22.2 đã chạy - Webhook đang hoạt động ngầm', 'success', 2500);
+        }, 500);
+    });
+})();
