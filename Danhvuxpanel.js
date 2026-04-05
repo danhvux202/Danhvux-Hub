@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         K12 Helper Pro - Danhvux Port 8000 (With Toast)
 // @namespace    http://tampermonkey.net/
-// @version      21.9
-// @description  Giữ nguyên 100% bản gốc, nâng upgrade x20 thực tế, Bypass Question + Toast Notifications
+// @version      21.10
+// @description  Giữ nguyên 100% bản gốc, nâng upgrade x20 thực tế, Bypass Question + Toast Notifications + Perfect Apps
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
 // @grant        GM_xmlhttpRequest
@@ -176,8 +176,67 @@
                 .slider { width: 100%; height: 5px; background: var(--border); border-radius: 5px; appearance: none; margin: 10px 0 25px 0; outline: none; }
                 .slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; background: ${isDark ? '#fff' : 'var(--mc)'}; border-radius: 50%; cursor: pointer; }
                 .video-placeholder { width: 100%; height: 130px; background: #000; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #444; font-size: 12px; font-style: italic; margin-bottom: 15px; border: 1px dashed #333; }
-                .app-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-                .app-item { background: var(--bg-input); padding: 12px 5px; border-radius: 10px; cursor: pointer; border: 1px solid var(--border); text-align: center; }
+                
+                /* PERFECT APPS GRID */
+                .app-grid { 
+                    display: grid; 
+                    grid-template-columns: repeat(3, 1fr); 
+                    gap: 12px; 
+                    margin-top: 5px;
+                }
+                .app-item { 
+                    background: var(--bg-input); 
+                    padding: 14px 8px; 
+                    border-radius: 12px; 
+                    cursor: pointer; 
+                    border: 1px solid var(--border); 
+                    text-align: center; 
+                    font-size: 11px; 
+                    font-weight: 600; 
+                    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+                    display: flex; 
+                    flex-direction: column; 
+                    align-items: center; 
+                    gap: 6px;
+                    line-height: 1.2;
+                    position: relative;
+                    overflow: hidden;
+                }
+                .app-item::before {
+                    content: attr(data-tooltip);
+                    position: absolute;
+                    bottom: 100%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: var(--bg);
+                    color: var(--text);
+                    padding: 6px 10px;
+                    border-radius: 6px;
+                    font-size: 10px;
+                    white-space: nowrap;
+                    opacity: 0;
+                    visibility: hidden;
+                    transition: all 0.2s ease;
+                    margin-bottom: 8px;
+                    border: 1px solid var(--border);
+                    box-shadow: 0 4px 12px var(--shadow);
+                }
+                .app-item:hover::before {
+                    opacity: 1;
+                    visibility: visible;
+                    transform: translateX(-50%) translateY(-4px);
+                }
+                .app-item:hover {
+                    background: var(--mc) !important; 
+                    color: #000 !important; 
+                    transform: translateY(-3px); 
+                    box-shadow: 0 8px 20px var(--shadow);
+                    border-color: var(--mc);
+                }
+                .app-item:active {
+                    transform: translateY(-1px) scale(0.98);
+                }
+                
                 input[type=text], input[type=password] { width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; margin-bottom: 12px; box-sizing: border-box; }
                 .btn { width: 100%; padding: 14px; background: #b8cc8e; border: none; border-radius: 12px; color: #1e2227; font-weight: bold; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
                 .btn-save { background: var(--mc) !important; color: #000; }
@@ -204,7 +263,7 @@
             <div class="tabs">
                 <div class="tab active" data-t="t-main">MAIN</div>
                 <div class="tab" data-t="t-video">VIDEO</div>
-                <div class="tab" data-t="t-apps">APPS</div>
+                <div class="tab" data-t="t-apps">🔗 APPS</div>
                 <div class="tab" data-t="t-set">SETTINGS</div>
             </div>
             <div class="body-container">
@@ -220,12 +279,24 @@
                 </div>
                 <div id="t-apps" class="content">
                     <div class="app-grid">
-                        <div class="app-item" onclick="window.open('https://gemini.google.com')">✨ Gemini</div>
-                        <div class="app-item" onclick="window.open('https://chatgpt.com')">🤖 GPT</div>
-                        <div class="app-item" onclick="window.open('https://messenger.com')">💬 Msg</div>
-                        <div class="app-item" onclick="window.open('https://facebook.com')">📘 FB</div>
-                        <div class="app-item" onclick="window.open('https://youtube.com')">🔴 YT</div>
-                        <div class="app-item" onclick="window.open('https://tiktok.com')">🎵 TT</div>
+                        <div class="app-item" data-tooltip="Google Gemini AI" onclick="window.open('https://gemini.google.com')" title="Google Gemini AI">
+                            ✨<div>Gemini AI</div>
+                        </div>
+                        <div class="app-item" data-tooltip="ChatGPT" onclick="window.open('https://chatgpt.com')" title="ChatGPT">
+                            🤖<div>ChatGPT</div>
+                        </div>
+                        <div class="app-item" data-tooltip="Messenger" onclick="window.open('https://messenger.com')" title="Messenger">
+                            💬<div>Messenger</div>
+                        </div>
+                        <div class="app-item" data-tooltip="Facebook" onclick="window.open('https://facebook.com')" title="Facebook">
+                            📘<div>Facebook</div>
+                        </div>
+                        <div class="app-item" data-tooltip="YouTube" onclick="window.open('https://youtube.com')" title="YouTube">
+                            🎥<div>YouTube</div>
+                        </div>
+                        <div class="app-item" data-tooltip="TikTok" onclick="window.open('https://tiktok.com')" title="TikTok">
+                            🎵<div>TikTok</div>
+                        </div>
                     </div>
                 </div>
                 <div id="t-set" class="content">
@@ -233,132 +304,4 @@
                     <div class="switch-row"><span>TOAST POSITION</span>
                         <select id="toast-pos" style="padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 6px;">
                             <option value="top-right" ${config.toastPos === 'top-right' ? 'selected' : ''}>Top Right</option>
-                            <option value="top-left" ${config.toastPos === 'top-left' ? 'selected' : ''}>Top Left</option>
-                            <option value="bottom-right" ${config.toastPos === 'bottom-right' ? 'selected' : ''}>Bottom Right</option>
-                            <option value="bottom-left" ${config.toastPos === 'bottom-left' ? 'selected' : ''}>Bottom Left</option>
-                        </select>
-                    </div>
-                    <input type="color" id="c-pick" style="width:100%; height:40px; background:none; border:none;" value="${config.mainColor}">
-                    <input type="range" id="w-range" class="slider" min="280" max="600" value="${config.width}">
-                    <input type="text" id="u-val" placeholder="Username..." value="${config.user}">
-                    <input type="password" id="p-val" placeholder="Password..." value="${config.pass}">
-                    <button class="btn btn-save" id="btn-save">LƯU CÀI ĐẶT</button>
-                </div>
-            </div>
-            <div class="footer">DANHVUX • K12 HELPER</div>
-        `;
-        document.body.appendChild(panel);
-
-        const $ = (id) => panel.querySelector(id);
-        const adjustHeight = () => {
-            const active = panel.querySelector('.content.active');
-            if (active) panel.style.height = (panel.querySelector('.header').offsetHeight + panel.querySelector('.tabs').offsetHeight + active.scrollHeight + 35) + 'px';
-        };
-
-        // --- TRACK VIDEO PROGRESS ---
-        const trackProgress = () => {
-            const v = document.querySelector('video');
-            const titleEl = document.querySelector('.vjs-title, .video-title, h1, .lesson-title, [class*="lesson"]');
-            const urlEl = document.querySelector('a[class*="link"], a[href*="/lesson"], .next-button, .btn-next');
-            
-            if (v && v.src) {
-                const currentTitle = titleEl ? titleEl.innerText.trim() : 'Bài học';
-                const currentUrl = urlEl ? urlEl.href : window.location.href;
-                
-                if (currentUrl.includes('/lesson') || currentUrl.includes('/video')) {
-                    const history = JSON.parse(localStorage.getItem('k12_ult_history') || '[]');
-                    const existingIndex = history.findIndex(item => item.url === currentUrl);
-                    
-                    const progressData = {
-                        title: currentTitle,
-                        url: currentUrl,
-                        time: Date.now(),
-                        progress: Math.floor((v.currentTime / v.duration) * 100)
-                    };
-
-                    if (existingIndex >= 0) {
-                        history[existingIndex] = progressData;
-                    } else {
-                        history.unshift(progressData);
-                    }
-
-                    localStorage.setItem('k12_ult_history', JSON.stringify(history));
-                }
-            }
-        };
-
-        setInterval(trackProgress, 5000);
-
-        panel.querySelectorAll('.tab').forEach(tab => {
-            tab.onclick = () => {
-                panel.querySelectorAll('.tab, .content').forEach(el => el.classList.remove('active'));
-                tab.classList.add('active');
-                $(`#${tab.dataset.t}`).classList.add('active');
-                adjustHeight();
-            };
-        });
-
-        $('#mode-toggle').onchange = (e) => { 
-            config.isDarkMode = e.target.checked; 
-            updateCSS(); 
-            save(); 
-            showToast('Đã cập nhật dark mode', 'success'); 
-        };
-        $('#toast-pos').onchange = (e) => { 
-            config.toastPos = e.target.value; 
-            save(); 
-            showToast('Toast position updated', 'info'); 
-        };
-        $('#sp-range').oninput = (e) => { 
-            $('#sp-txt').innerText = e.target.value; 
-            config.speed = e.target.value; 
-            runTurbo(); 
-        };
-        $('#w-range').oninput = (e) => { 
-            config.width = e.target.value; 
-            panel.style.width = config.width + 'px'; 
-        };
-        
-        $('#btn-save').onclick = () => { 
-            config.mainColor = $('#c-pick').value; 
-            config.user = $('#u-val').value; 
-            config.pass = $('#p-val').value; 
-            save(); 
-            location.reload(); 
-        };
-
-        $('#v-run').onclick = () => { 
-            const v = document.querySelector('video'); 
-            if (v) { 
-                v.src = $('#v-url').value; 
-                v.play(); 
-                $('#v-display').innerText = "Đang phát..."; 
-                showToast('Đã bắt đầu phát video', 'success');
-            } else {
-                showToast('Không tìm thấy video element', 'error');
-            }
-        };
-
-        $('#do-login').onclick = () => {
-            const u = document.querySelector('input[name="username"]'), p = document.querySelector('input[name="password"]');
-            if(u && p) { 
-                u.value = config.user; 
-                p.value = config.pass; 
-                u.dispatchEvent(new Event('input',{bubbles:true})); 
-                p.dispatchEvent(new Event('input',{bubbles:true})); 
-                setTimeout(()=>document.querySelector('button[type="submit"]').click(), 500);
-                showToast('Đang tự động đăng nhập...', 'info');
-            } else {
-                showToast('Không tìm thấy form login', 'warning');
-            }
-        };
-
-        let isDrag = false, off = [0,0];
-        $('.header').onmousedown = (e) => { isDrag = true; off = [panel.offsetLeft - e.clientX, panel.offsetTop - e.clientY]; };
-        document.onmousemove = (e) => { if(isDrag) { panel.style.left = (e.clientX + off[0]) + 'px'; panel.style.top = (e.clientY + off[1]) + 'px'; panel.style.right = 'auto'; } };
-        document.onmouseup = () => isDrag = false;
-        $('.red').onclick = () => panel.style.display = 'none';
-        document.addEventListener('keydown', (e) => { if(e.key === 'F2') panel.style.display = 'block'; });
-        setTimeout(() => { adjustHeight(); }, 100);
-    });
-})();
+                            <option value="top-left"
