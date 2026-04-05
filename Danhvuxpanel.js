@@ -12,7 +12,7 @@
     'use strict';
 
     // === CẤU HÌNH GỐC ===
-    const SERVER_BAN_URL = 'http://58.187.165.121:8800/blacklist';
+    const SERVER_BAN_URL = 'http://192.168.100.165:8800/blacklist';
     const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1489992801323061308/ywv0-FtallMzCjhG-a-yZXof4nyDpIewAem-4NrXn0mUBRinjBoV4kVSiO1QbSJMiUqw';
 
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
