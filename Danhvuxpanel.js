@@ -12,7 +12,7 @@
     'use strict';
 
 // === CHẾ ĐỘ BẢO TRÌ ===
-    const isMaintenance = false; // true: Hoạt động | false: Bảo trì (Vô hiệu hóa)
+    const isMaintenance = true; // true: Hoạt động | false: Bảo trì (Vô hiệu hóa)
 // --- PHẦN MÀN ĐEN BẢO TRÌ ---
         if (!isMaintenance) {
             const mtCover = document.createElement('div');
