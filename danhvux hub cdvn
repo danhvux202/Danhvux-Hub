@@ -1,0 +1,496 @@
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local Vim = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- HÀM GET NIL CASH
+local getNil = function(name, class) 
+    for _, v in next, getnilinstances() do 
+        if v.ClassName == class and v.Name == name then 
+            return v 
+        end 
+    end 
+end
+
+local Window = Fluent:CreateWindow({
+    Title = "Danhvux Hub BETA version",
+    SubTitle = "by Danhvux",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark"
+})
+
+-- 3. KHAI BÁO TABS
+local Tabs = {
+    Info = Window:AddTab({ Title = "Thông Tin", Icon = "info" }),
+    Combat = Window:AddTab({ Title = "Chiến Đấu", Icon = "swords" }),
+    Jobs = Window:AddTab({ Title = "Làm Việc", Icon = "briefcase" }),
+    ESP = Window:AddTab({ Title = "Thị Giác", Icon = "eye" }),
+    Settings = Window:AddTab({ Title = "Hệ Thống", Icon = "settings" })
+}
+
+-- 4. NỘI DUNG TAB INFO (ĐÃ BỎ BANNER)
+Tabs.Info:AddParagraph({
+    Title = "Danhvux Hub v26.2",
+    Content = "Chào mừng Danh đã quay trở lại!\nScript hỗ trợ tối ưu cho các game RP."
+})
+
+Tabs.Info:AddSection("Thông Tin Liên Hệ")
+Tabs.Info:AddButton({
+    Title = "Tham gia Discord Server",
+    Description = "https://discord.gg/yZCyPUTrQ",
+    Callback = function()
+        setclipboard("https://discord.gg/yZCyPUTrQ")
+        Fluent:Notify({ Title = "Danhvux Hub", Content = "Đã sao chép link Discord!", Duration = 3 })
+    end
+})
+
+Tabs.Info:AddParagraph({ Title = "Người sở hữu (Owner)", Content = "danhvu8298" })
+
+-- 5. CÁC BIẾN HỆ THỐNG & CHỨC NĂNG (GIỮ NGUYÊN TỪ UNTITLED-1.LUA)
+local AutoKill = false
+local WalkSpeedValue = 0 
+local JumpPowerValue = 50
+
+-- BIẾN HỆ THỐNG
+local AutoKill = false
+local AutoReset = false
+local isHoldingF = false 
+local lastKillTime = 0 
+local WalkSpeedValue = 0 
+local JumpPowerValue = 50
+local accelMult = 0.025
+local brakeMult = 0.15
+local antiFlipEnabled = false
+local antiSlipEnabled = false
+
+-- BIẾN ESP
+local ESP_Enabled = false
+local ESP_Box = false
+local ESP_Health = false
+local ESP_Distance = false
+local ESP_Tracer = false
+
+-- ================= HÀM HỖ TRỢ =================
+local function safeTeleport(cf)
+    local char = game.Players.LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = cf
+    end
+end
+
+local function pressKey(key)
+    Vim:SendKeyEvent(true, key, false, game)
+    task.wait(0.05)
+    Vim:SendKeyEvent(false, key, false, game)
+    task.wait(0.05)
+end
+
+local function releaseF()
+    if isHoldingF then
+        Vim:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        isHoldingF = false
+    end
+end
+
+local function holdF()
+    if not isHoldingF then
+        Vim:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+        isHoldingF = true
+    end
+end
+
+local function findCash()
+    local nilCash = getNil("Cash", "MeshPart")
+    if nilCash then return nilCash end
+    local cashFolder = workspace:FindFirstChild("CityNPCs") and workspace.CityNPCs:FindFirstChild("Drop") and workspace.CityNPCs.Drop:FindFirstChild("Cash")
+    local money = cashFolder and cashFolder:FindFirstChildOfClass("BasePart")
+    if money then return money end
+    return nil
+end
+
+local function equipPhongLon()
+    local player = game.Players.LocalPlayer
+    local char = player.Character
+    if not char or not char:FindFirstChild("Humanoid") then return end
+    if char:FindFirstChild("PhongLon") then return end
+    
+    releaseF() 
+    local toolInBackpack = player.Backpack:FindFirstChild("PhongLon")
+    if toolInBackpack then
+        char.Humanoid:EquipTool(toolInBackpack)
+    else
+        Vim:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        task.wait(0.1)
+        pressKey(Enum.KeyCode.Backquote)
+        pressKey(Enum.KeyCode.BackSlash)
+        pressKey(Enum.KeyCode.Down)
+        pressKey(Enum.KeyCode.Right)
+        pressKey(Enum.KeyCode.Up)
+        pressKey(Enum.KeyCode.Up)
+        pressKey(Enum.KeyCode.Left)
+        pressKey(Enum.KeyCode.Down)
+        pressKey(Enum.KeyCode.Return)
+        task.wait(0.2)
+        pressKey(Enum.KeyCode.BackSlash)
+        pressKey(Enum.KeyCode.Down)
+        pressKey(Enum.KeyCode.Right)
+        pressKey(Enum.KeyCode.Up)
+        pressKey(Enum.KeyCode.Up)
+        pressKey(Enum.KeyCode.Up)
+        pressKey(Enum.KeyCode.Return)
+        task.wait(0.3)
+    end
+end
+
+-- ================= ESP LOGIC (DRAWING API) =================
+local function createDrawing(class, properties)
+    local d = Drawing.new(class)
+    for i, v in pairs(properties) do d[i] = v end
+    return d
+end
+
+local function ApplyESP(Player)
+    local Box = createDrawing("Square", { Thickness = 1, Filled = false, Color = Color3.new(1, 1, 1), Visible = false })
+    local HealthBar = createDrawing("Square", { Thickness = 1, Filled = true, Color = Color3.new(0, 1, 0), Visible = false })
+    local Tracer = createDrawing("Line", { Thickness = 1, Color = Color3.new(1, 1, 1), Visible = false })
+    local DistanceText = createDrawing("Text", { Size = 13, Center = true, Outline = true, Color = Color3.new(1, 1, 1), Visible = false })
+
+    local function Update()
+        local connection
+        connection = RunService.RenderStepped:Connect(function()
+            if ESP_Enabled and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and Player.Character:FindFirstChild("Humanoid") and Player ~= LocalPlayer then
+                local RootPart = Player.Character.HumanoidRootPart
+                local Humanoid = Player.Character.Humanoid
+                local Pos, OnScreen = Camera:WorldToViewportPoint(RootPart.Position)
+
+                if OnScreen then
+                    local Size = (Camera:WorldToViewportPoint(RootPart.Position - Vector3.new(0, 3, 0)).Y - Camera:WorldToViewportPoint(RootPart.Position + Vector3.new(0, 2.6, 0)).Y)
+                    local BoxSize = Vector2.new(Size / 1.5, Size)
+                    local BoxPos = Vector2.new(Pos.X - BoxSize.X / 2, Pos.Y - BoxSize.Y / 2)
+
+                    -- Box ESP
+                    Box.Visible = ESP_Box
+                    Box.Size = BoxSize
+                    Box.Position = BoxPos
+
+                    -- Health Bar
+                    HealthBar.Visible = ESP_Health
+                    HealthBar.Size = Vector2.new(2, BoxSize.Y * (Humanoid.Health / Humanoid.MaxHealth))
+                    HealthBar.Position = Vector2.new(BoxPos.X - 5, BoxPos.Y + (BoxSize.Y - HealthBar.Size.Y))
+                    HealthBar.Color = Color3.fromHSV(Humanoid.Health / Humanoid.MaxHealth * 0.3, 1, 1)
+
+                    -- Distance
+                    if ESP_Distance then
+                        local dist = math.floor((RootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
+                        DistanceText.Visible = true
+                        DistanceText.Text = "[" .. dist .. "m]"
+                        DistanceText.Position = Vector2.new(BoxPos.X + BoxSize.X / 2, BoxPos.Y + BoxSize.Y + 2)
+                    else
+                        DistanceText.Visible = false
+                    end
+
+                    -- Tracers
+                    if ESP_Tracer then
+                        Tracer.Visible = true
+                        Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                        Tracer.To = Vector2.new(Pos.X, Pos.Y + (BoxSize.Y / 2))
+                    else
+                        Tracer.Visible = false
+                    end
+                else
+                    Box.Visible = false
+                    HealthBar.Visible = false
+                    Tracer.Visible = false
+                    DistanceText.Visible = false
+                end
+            else
+                Box.Visible = false
+                HealthBar.Visible = false
+                Tracer.Visible = false
+                DistanceText.Visible = false
+                if not Player.Parent then connection:Disconnect() end
+            end
+        end)
+    end
+    coroutine.wrap(Update)()
+end
+
+for _, p in pairs(Players:GetPlayers()) do ApplyESP(p) end
+Players.PlayerAdded:Connect(ApplyESP)
+
+-- ================= TAB CHIẾN ĐẤU =================
+Tabs.Combat:AddToggle("KillNPC", {
+    Title = "Auto Diệt Giang Hồ (Fix Chờ Nhặt Tiền)",
+    Default = false,
+    Callback = function(Value) 
+        AutoKill = Value 
+        if Value then
+            safeTeleport(CFrame.new(644, 21, -317))
+        else
+            releaseF() 
+        end
+    end
+})
+
+task.spawn(function()
+    while task.wait() do
+        if AutoKill then
+            pcall(function()
+                local player = game.Players.LocalPlayer
+                local char = player.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                local hum = char and char:FindFirstChild("Humanoid")
+                if not root or not hum then return end
+
+                local npc = workspace.CityNPCs.NPCs:FindFirstChild("CityNPC")
+
+                if npc and npc:FindFirstChild("HumanoidRootPart") and npc:FindFirstChild("Humanoid") and npc.Humanoid.Health > 0 then
+                    releaseF() 
+                    equipPhongLon()
+                    npc.HumanoidRootPart.Size = Vector3.new(16, 16, 16)
+                    npc.HumanoidRootPart.CanCollide = false
+                    hum:ChangeState(Enum.HumanoidStateType.Physics)
+                    root.Velocity = Vector3.new(0, 0, 0)
+                    root.CFrame = npc.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                    Vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                    task.wait(0.02)
+                    Vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                    lastKillTime = tick() 
+                else
+                    local cash = findCash()
+                    if cash then
+                        holdF()
+                        safeTeleport(cash.CFrame * CFrame.new(0, 5, 0))
+                    elseif tick() - lastKillTime < 3 then
+                        holdF()
+                    else
+                        local dist = (root.Position - Vector3.new(644, 21, -317)).Magnitude
+                        if dist > 10 then
+                            safeTeleport(CFrame.new(644, 21, -317))
+                        end
+                        holdF()
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- ================= TAB LÀM VIỆC =================
+Tabs.Jobs:AddSection("Khai Thác Cao Su")
+local NewCaoSuData = {
+    ["Cao Su 1"] = "7181cf13-9d65-41f4-b40b-847a40229593",
+    ["Cao Su 2"] = "6c646e46-0352-4f23-b2f0-5f96cafc0677",
+    ["Cao Su 3"] = "f8eb060e-8f34-45af-a081-2f2127bb2d76"
+}
+
+for name, id in pairs(NewCaoSuData) do
+    Tabs.Jobs:AddButton({
+        Title = "Làm " .. name,
+        Callback = function()
+            releaseF()
+            safeTeleport(CFrame.new(1697, 19, -362))
+            task.wait(0.7)
+            local targetZone = workspace.Lumberjack.Zones:FindFirstChild(id)
+            if targetZone and targetZone:FindFirstChild("Farm") then
+                safeTeleport(targetZone.Farm.CFrame + Vector3.new(0, 2, 0))
+                task.wait(0.5)
+                Vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                task.wait(2)
+                Vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            end
+        end
+    })
+end
+
+Tabs.Jobs:AddSection("Bán Bánh Mì")
+local function lamBanhMi(targetObj)
+    releaseF()
+    safeTeleport(CFrame.new(547, 19, -383))
+    task.wait(0.7)
+    if targetObj then
+        safeTeleport(targetObj.CFrame + Vector3.new(0, 1, 0))
+        task.wait(0.4)
+        Vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+        task.wait(1.5)
+        Vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+    end
+end
+Tabs.Jobs:AddButton({ Title = "Bánh Mì 1", Callback = function() lamBanhMi(workspace["Chair Anima"]:GetChildren()[10]) end })
+Tabs.Jobs:AddButton({ Title = "Bánh Mì 2", Callback = function() lamBanhMi(workspace["Chair Anima"]:GetChildren()[8]) end })
+Tabs.Jobs:AddButton({ Title = "Bánh Mì 3", Callback = function() lamBanhMi(workspace["Chair Anima"]:FindFirstChild("banh mi")) end })
+
+-- ================= TAB ESP (PLAYER) =================
+Tabs.ESP:AddToggle("MasterESP", { Title = "Bật ESP", Default = false, Callback = function(v) ESP_Enabled = v end })
+Tabs.ESP:AddToggle("BoxESP", { Title = "Khung 2D (Box)", Default = false, Callback = function(v) ESP_Box = v end })
+Tabs.ESP:AddToggle("HealthESP", { Title = "Thanh Máu", Default = false, Callback = function(v) ESP_Health = v end })
+Tabs.ESP:AddToggle("DistESP", { Title = "Khoảng Cách", Default = false, Callback = function(v) ESP_Distance = v end })
+Tabs.ESP:AddToggle("TracerESP", { Title = "Tia Chỉ Hướng (Tracers)", Default = false, Callback = function(v) ESP_Tracer = v end })
+
+-- ================= TAB HỆ THỐNG =================
+Tabs.Settings:AddSection("Chỉ Số Nhân Vật")
+Tabs.Settings:AddSlider("WalkSpeed", { Title = "Tốc độ chạy", Default = 0, Min = 0, Max = 100, Rounding = 1, Callback = function(Value) WalkSpeedValue = Value end })
+Tabs.Settings:AddSlider("JumpPower", { Title = "Độ nhảy cao", Default = 50, Min = 50, Max = 300, Rounding = 1, Callback = function(Value) JumpPowerValue = Value end })
+Tabs.Settings:AddSection("Phương Tiện")
+Tabs.Settings:AddSlider("AccelSpeed", { Title = "Tăng Tốc (W)", Default = 25, Min = 0, Max = 50, Rounding = 1, Callback = function(Value) accelMult = Value / 1000 end })
+Tabs.Settings:AddSlider("BrakeForce", { Title = "Phanh (S)", Default = 150, Min = 0, Max = 300, Rounding = 1, Callback = function(Value) brakeMult = Value / 1000 end })
+Tabs.Settings:AddToggle("AntiFlip", { Title = "Chống Ngã Xe Máy", Default = false, Callback = function(Value) antiFlipEnabled = Value end })
+Tabs.Settings:AddToggle("AntiSlip", { Title = "Chống Trơn Xe", Default = false, Callback = function(Value) antiSlipEnabled = Value end })
+Tabs.Settings:AddToggle("AutoResetHealth", { Title = "Auto Reset khi hết máu", Default = false, Callback = function(Value) AutoReset = Value end })  
+-- ================= VÒNG LẶP HỆ THỐNG =================
+local function GetVehicleFromDescendant(Descendant)
+    return Descendant:FindFirstAncestor(LocalPlayer.Name .. "\'s Car") or
+           (Descendant:FindFirstAncestor("Body") and Descendant:FindFirstAncestor("Body").Parent) or
+           (Descendant:FindFirstAncestor("Misc") and Descendant:FindFirstAncestor("Misc").Parent) or
+           Descendant:FindFirstAncestorWhichIsA("Model")
+end
+
+task.spawn(function()
+    while task.wait() do
+        pcall(function()
+            local char = LocalPlayer.Character
+            if char then
+                local hum = char:FindFirstChild("Humanoid")
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if hum and root then
+                    hum.WalkSpeed = 16 
+                    if WalkSpeedValue > 0 and hum.MoveDirection.Magnitude > 0 then
+                        root.CFrame = root.CFrame + (hum.MoveDirection * (WalkSpeedValue / 10))
+                    end
+                    hum.JumpPower = JumpPowerValue
+                    hum.UseJumpPower = true 
+                end
+            end
+        end)
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    pcall(function()
+        local Character = LocalPlayer.Character
+        if Character then
+            local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
+            if Humanoid and Humanoid.SeatPart and Humanoid.SeatPart:IsA("VehicleSeat") then
+                local SeatPart = Humanoid.SeatPart
+                local Vehicle = GetVehicleFromDescendant(SeatPart)
+                if not Vehicle then return end
+                
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                    SeatPart.AssemblyLinearVelocity = SeatPart.AssemblyLinearVelocity * Vector3.new(1 + accelMult, 1, 1 + accelMult)
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                    SeatPart.AssemblyLinearVelocity = SeatPart.AssemblyLinearVelocity * Vector3.new(1 - brakeMult, 1, 1 - brakeMult)
+                end
+                
+                if antiFlipEnabled then
+                    local PrimaryPart = Vehicle.PrimaryPart or SeatPart
+                    if PrimaryPart then
+                        local cf = PrimaryPart.CFrame
+                        if cf.UpVector.Y < 0.7 or math.abs(cf.RightVector.Y) > 0.7 then
+                            local camera = workspace.CurrentCamera
+                            local lookDir = camera.CFrame.LookVector
+                            PrimaryPart.CFrame = CFrame.lookAt(cf.Position, cf.Position + Vector3.new(lookDir.X, 0, lookDir.Z))
+                            SeatPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+-- ================= ANTI AFK (CHẠY NGẦM) =================
+task.spawn(function()
+    local VirtualUser = game:GetService("VirtualUser")
+    LocalPlayer.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+        -- In ra console để bạn kiểm tra nếu muốn (nhấn F12)
+        warn("Danhvux Hub: Đã chặn Kick AFK thành công!")
+    end)
+end)
+
+-- ================= NÚT BẤM LOGO DANHVUX HUB (FIXED IMAGE) =================
+local ScreenGui = Instance.new("ScreenGui")
+local ToggleButton = Instance.new("ImageButton")
+local UICorner = Instance.new("UICorner")
+local UIStroke = Instance.new("UIStroke")
+
+ScreenGui.Name = "DanhvuxToggle_Final"
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.DisplayOrder = 9999
+
+ToggleButton.Name = "LogoButton"
+ToggleButton.Parent = ScreenGui
+ToggleButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+ToggleButton.Position = UDim2.new(0.1, 0, 0.2, 0)
+ToggleButton.Size = UDim2.new(0, 55, 0, 55)
+ToggleButton.Active = true
+
+-- SỬ DỤNG ID MỚI NHẤT CỦA BẠN
+local assetId = "90490093863834"
+ToggleButton.Image = "rbxassetid://" .. assetId
+
+-- Bo góc và Viền
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = ToggleButton
+
+UIStroke.Color = Color3.fromRGB(255, 255, 255)
+UIStroke.Thickness = 2
+UIStroke.Parent = ToggleButton
+
+-- XỬ LÝ LỖI ẢNH TRẮNG (Chuyển Decal ID sang Image ID)
+task.spawn(function()
+    -- Nếu sau 2 giây ảnh vẫn trắng, thử lấy ID thực tế
+    task.wait(2)
+    if ToggleButton.ContentImageSize == Vector2.new(0, 0) then
+        -- Mẹo: Đôi khi Image ID chỉ cách Decal ID vài đơn vị
+        -- Nếu vẫn trắng, bạn nên mở ảnh trong Studio để lấy Image ID chuẩn nhất
+        warn("Logo chưa tải được, đang kiểm duyệt hoặc sai Image ID.")
+    end
+end)
+
+-- [Phần logic Kéo thả và Click giữ nguyên như bản trước để đảm bảo mượt mà]
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    TweenService:Create(ToggleButton, TweenInfo.new(0.1), {Position = newPos}):Play()
+end
+
+ToggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = ToggleButton.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+
+ToggleButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then update(input) end
+end)
+
+ToggleButton.MouseButton1Click:Connect(function()
+    if not dragging and Window then
+        Window:Minimize()
+    end
+end)
+
+Window:SelectTab(1)
