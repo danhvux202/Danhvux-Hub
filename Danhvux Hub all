@@ -1,4 +1,4 @@
-local targetPlaceId = 123456789 
+local targetPlaceId = 18192562963 
 
 if game.PlaceId == targetPlaceId then
     loadstring(game:HttpGet("https://raw.githubusercontent.com/danhvux202/Danhvux-Hub/refs/heads/main/danhvux%20hub%20cdvn"))()
