@@ -1,0 +1,7 @@
+local targetPlaceId = 123456789 
+
+if game.PlaceId == targetPlaceId then
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/danhvux202/Danhvux-Hub/refs/heads/main/danhvux%20hub%20cdvn"))()
+else
+    game.Players.LocalPlayer:Kick("Script này không hỗ trợ game này.")
+end
