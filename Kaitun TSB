@@ -1,0 +1,676 @@
+-- ============================================================
+-- COMPLETE SCRIPT: AIMBOT + SPAM + ANTI-STUN + HOP EVERY 15 MIN
+-- DYNAMIC ISLAND WITH HEALTH BAR + SKIP BUTTON
+-- ============================================================
+
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
+local TextService = game:GetService("TextService")
+local HttpService = game:GetService("HttpService")
+
+-- ========== GLOBAL VARIABLES ==========
+local Character = nil
+local HumanoidRootPart = nil
+local Communicate = nil
+local CurrentTarget = nil
+local CurrentTargetPlayer = nil
+local CurrentTargetHP = 0
+local CurrentTargetMaxHP = 0
+local IsHoping = false
+local HopCountdown = 10
+local HopTimer = 900 -- 15 minutes in seconds
+
+-- ========== ANTI-STUN (SMART) ==========
+local function setupCharacter(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    humanoid.Sit = false
+    
+    local connections = {}
+    
+    local function handleBadState(newState)
+        if newState == Enum.HumanoidStateType.Ragdoll or 
+           newState == Enum.HumanoidStateType.FallingDown or 
+           newState == Enum.HumanoidStateType.PlatformStanding or
+           newState == Enum.HumanoidStateType.Seated then
+            humanoid.Sit = false
+            humanoid.PlatformStand = false
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+            if character:FindFirstChild("HumanoidRootPart") then
+                character.HumanoidRootPart.Anchored = false
+            end
+            return true
+        end
+        return false
+    end
+    
+    handleBadState(humanoid:GetState())
+    
+    table.insert(connections, humanoid.StateChanged:Connect(function(_, newState)
+        handleBadState(newState)
+    end))
+    
+    for _, seat in pairs(workspace:GetDescendants()) do
+        if seat:IsA("Seat") then
+            table.insert(connections, seat:GetPropertyChangedSignal("Occupant"):Connect(function()
+                if seat.Occupant == humanoid then
+                    task.wait(0.01)
+                    humanoid.Sit = false
+                    humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+                end
+            end))
+        end
+    end
+    
+    table.insert(connections, humanoid.Died:Connect(function()
+        for _, conn in ipairs(connections) do
+            conn:Disconnect()
+        end
+    end))
+end
+
+-- ========== DYNAMIC ISLAND (GUI) ==========
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "DynamicIslandGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = PlayerGui
+
+local TOP_POS = 15
+local PILL_HEIGHT = 38
+local MIN_PILL_WIDTH = 140
+
+local island = Instance.new("TextButton")
+island.Name = "DynamicIsland"
+island.AnchorPoint = Vector2.new(0.5, 0)
+island.Position = UDim2.new(0.5, 0, 0, TOP_POS)
+island.Size = UDim2.new(0, MIN_PILL_WIDTH, 0, PILL_HEIGHT)
+island.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+island.BorderSizePixel = 0
+island.ClipsDescendants = true
+island.AutoButtonColor = false
+island.Text = ""
+island.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, PILL_HEIGHT / 2)
+uiCorner.Parent = island
+
+local uiStroke = Instance.new("UIStroke")
+uiStroke.Color = Color3.fromRGB(60, 60, 60)
+uiStroke.Thickness = 1.5
+uiStroke.Transparency = 0.4
+uiStroke.Parent = island
+
+local compactFrame = Instance.new("CanvasGroup")
+compactFrame.Name = "CompactFrame"
+compactFrame.Size = UDim2.new(1, 0, 1, 0)
+compactFrame.BackgroundTransparency = 1
+compactFrame.GroupTransparency = 0
+compactFrame.Parent = island
+
+local statusDot = Instance.new("Frame")
+statusDot.Name = "StatusDot"
+statusDot.Size = UDim2.new(0, 10, 0, 10)
+statusDot.Position = UDim2.new(0, 14, 0.5, -5)
+statusDot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+statusDot.BorderSizePixel = 0
+statusDot.Parent = compactFrame
+local dotCorner = Instance.new("UICorner")
+dotCorner.CornerRadius = UDim.new(1, 0)
+dotCorner.Parent = statusDot
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Position = UDim2.new(0, 32, 0, 0)
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Font = Enum.Font.GothamMedium
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 13
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+titleLabel.Parent = compactFrame
+
+-- Expanded frame (height increased to 120 to fit skip row)
+local expandedFrame = Instance.new("CanvasGroup")
+expandedFrame.Name = "ExpandedFrame"
+expandedFrame.Size = UDim2.new(1, 0, 1, 0)
+expandedFrame.BackgroundTransparency = 1
+expandedFrame.GroupTransparency = 1
+expandedFrame.Visible = false
+expandedFrame.Parent = island
+
+-- Avatar
+local avatarImage = Instance.new("ImageLabel")
+avatarImage.Name = "AvatarImage"
+avatarImage.Position = UDim2.new(0, 16, 0, 16)
+avatarImage.Size = UDim2.new(0, 60, 0, 60)
+avatarImage.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+avatarImage.BorderSizePixel = 0
+avatarImage.ScaleType = Enum.ScaleType.Fit
+avatarImage.Parent = expandedFrame
+local avatarCorner = Instance.new("UICorner")
+avatarCorner.CornerRadius = UDim.new(0, 8)
+avatarCorner.Parent = avatarImage
+
+-- Title
+local expTitle = Instance.new("TextLabel")
+expTitle.Name = "ExpTitle"
+expTitle.Position = UDim2.new(0, 88, 0, 14)
+expTitle.Size = UDim2.new(1, -100, 0, 20)
+expTitle.BackgroundTransparency = 1
+expTitle.Font = Enum.Font.GothamBold
+expTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+expTitle.TextSize = 14
+expTitle.TextXAlignment = Enum.TextXAlignment.Left
+expTitle.Parent = expandedFrame
+
+-- Health Bar Container
+local healthBarContainer = Instance.new("Frame")
+healthBarContainer.Name = "HealthBarContainer"
+healthBarContainer.Position = UDim2.new(0, 88, 0, 36)
+healthBarContainer.Size = UDim2.new(1, -100, 0, 16)
+healthBarContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+healthBarContainer.BorderSizePixel = 0
+healthBarContainer.Parent = expandedFrame
+local containerCorner = Instance.new("UICorner")
+containerCorner.CornerRadius = UDim.new(0, 4)
+containerCorner.Parent = healthBarContainer
+
+local healthBarFill = Instance.new("Frame")
+healthBarFill.Name = "HealthBarFill"
+healthBarFill.Size = UDim2.new(1, 0, 1, 0)
+healthBarFill.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+healthBarFill.BorderSizePixel = 0
+healthBarFill.Parent = healthBarContainer
+local fillCorner = Instance.new("UICorner")
+fillCorner.CornerRadius = UDim.new(0, 4)
+fillCorner.Parent = healthBarFill
+
+local hpText = Instance.new("TextLabel")
+hpText.Name = "HPText"
+hpText.Position = UDim2.new(0, 0, 0, 0)
+hpText.Size = UDim2.new(1, 0, 1, 0)
+hpText.BackgroundTransparency = 1
+hpText.Font = Enum.Font.GothamBold
+hpText.TextColor3 = Color3.fromRGB(255, 255, 255)
+hpText.TextSize = 11
+hpText.TextXAlignment = Enum.TextXAlignment.Center
+hpText.TextYAlignment = Enum.TextYAlignment.Center
+hpText.Text = "100%"
+hpText.Parent = healthBarContainer
+
+-- Skip Row (Do you want to skip this player? + Skip button)
+local skipFrame = Instance.new("Frame")
+skipFrame.Name = "SkipFrame"
+skipFrame.Position = UDim2.new(0, 88, 0, 56)
+skipFrame.Size = UDim2.new(1, -100, 0, 22)
+skipFrame.BackgroundTransparency = 1
+skipFrame.Parent = expandedFrame
+
+local skipText = Instance.new("TextLabel")
+skipText.Name = "SkipText"
+skipText.Size = UDim2.new(1, -60, 1, 0)
+skipText.Position = UDim2.new(0, 0, 0, 0)
+skipText.BackgroundTransparency = 1
+skipText.Font = Enum.Font.Gotham
+skipText.TextColor3 = Color3.fromRGB(200, 200, 200)
+skipText.TextSize = 12
+skipText.TextXAlignment = Enum.TextXAlignment.Left
+skipText.TextYAlignment = Enum.TextYAlignment.Center
+skipText.Text = "Do you want to skip this player?"
+skipText.Parent = skipFrame
+
+local skipButton = Instance.new("TextButton")
+skipButton.Name = "SkipButton"
+skipButton.Size = UDim2.new(0, 50, 1, 0)
+skipButton.Position = UDim2.new(1, -50, 0, 0)
+skipButton.BackgroundColor3 = Color3.fromRGB(255, 140, 0) -- orange
+skipButton.BorderSizePixel = 0
+skipButton.Font = Enum.Font.GothamBold
+skipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+skipButton.TextSize = 12
+skipButton.Text = "Skip"
+skipButton.Parent = skipFrame
+local skipCorner = Instance.new("UICorner")
+skipCorner.CornerRadius = UDim.new(0, 4)
+skipCorner.Parent = skipButton
+
+-- Click hint (moved down)
+local clickHint = Instance.new("TextLabel")
+clickHint.Name = "ClickHint"
+clickHint.Position = UDim2.new(0, 88, 0, 80)
+clickHint.Size = UDim2.new(1, -100, 0, 18)
+clickHint.BackgroundTransparency = 1
+clickHint.Font = Enum.Font.Gotham
+clickHint.TextColor3 = Color3.fromRGB(150, 150, 150)
+clickHint.TextSize = 11
+clickHint.TextXAlignment = Enum.TextXAlignment.Left
+clickHint.TextYAlignment = Enum.TextYAlignment.Top
+clickHint.Text = "(Click to collapse)"
+clickHint.Parent = expandedFrame
+
+-- Animation
+local compressTweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+local expandTweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local fadeTweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local isExpanded = false
+local isAnimating = false
+local currentData = nil
+
+local function calculatePillWidth(text)
+    local textSize = TextService:GetTextSize(text, 13, Enum.Font.GothamMedium, Vector2.new(1000, 38))
+    return math.clamp(textSize.X + 55, 160, 380)
+end
+
+local function collapseIsland()
+    if isAnimating or not isExpanded then return end
+    isAnimating = true
+    TweenService:Create(expandedFrame, fadeTweenInfo, {GroupTransparency = 1}):Play()
+    task.wait(0.1)
+    expandedFrame.Visible = false
+    compactFrame.Visible = true
+    TweenService:Create(compactFrame, fadeTweenInfo, {GroupTransparency = 0}):Play()
+    local targetWidth = calculatePillWidth(titleLabel.Text)
+    local tweenSize = TweenService:Create(island, expandTweenInfo, {Size = UDim2.new(0, targetWidth, 0, PILL_HEIGHT)})
+    local tweenCorner = TweenService:Create(uiCorner, expandTweenInfo, {CornerRadius = UDim.new(0, PILL_HEIGHT / 2)})
+    tweenSize:Play()
+    tweenCorner:Play()
+    tweenSize.Completed:Wait()
+    isExpanded = false
+    isAnimating = false
+end
+
+local function expandIsland()
+    if isAnimating or isExpanded or not currentData then return end
+    isAnimating = true
+    avatarImage.Image = currentData.AvatarUrl or ""
+    expTitle.Text = "Target: " .. currentData.Name
+    -- Update health bar
+    local hp = currentData.HP or 0
+    local maxHp = currentData.MaxHP or 100
+    local percent = math.clamp(hp / maxHp * 100, 0, 100)
+    healthBarFill.Size = UDim2.new(percent / 100, 0, 1, 0)
+    hpText.Text = math.floor(percent) .. "%"
+    if percent > 60 then
+        healthBarFill.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+    elseif percent > 30 then
+        healthBarFill.BackgroundColor3 = Color3.fromRGB(255, 180, 0)
+    else
+        healthBarFill.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    end
+    
+    TweenService:Create(compactFrame, fadeTweenInfo, {GroupTransparency = 1}):Play()
+    task.wait(0.1)
+    compactFrame.Visible = false
+    expandedFrame.Visible = true
+    -- Expand to height 120 to fit all elements
+    local tweenSize = TweenService:Create(island, expandTweenInfo, {Size = UDim2.new(0, 350, 0, 120)})
+    local tweenCorner = TweenService:Create(uiCorner, expandTweenInfo, {CornerRadius = UDim.new(0, 20)})
+    tweenSize:Play()
+    tweenCorner:Play()
+    TweenService:Create(expandedFrame, fadeTweenInfo, {GroupTransparency = 0}):Play()
+    tweenSize.Completed:Wait()
+    isExpanded = true
+    isAnimating = false
+end
+
+-- Skip button handler
+skipButton.MouseButton1Click:Connect(function()
+    if not CurrentTarget then return end
+    print("Skipping target: " .. (CurrentTargetPlayer and CurrentTargetPlayer.Name or "unknown"))
+    -- Reset target to force finding a new one
+    CurrentTarget = nil
+    CurrentTargetPlayer = nil
+    -- Update island to show searching
+    titleLabel.Text = "Searching..."
+    statusDot.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+    -- Collapse expanded view
+    if isExpanded then
+        collapseIsland()
+    end
+end)
+
+-- Island click to expand/collapse
+island.MouseButton1Click:Connect(function()
+    if isExpanded then collapseIsland() else expandIsland() end
+end)
+
+local function updateIsland(targetName, targetHP, targetMaxHP, avatarUrl, isHopMode)
+    local title = "Fighting: " .. targetName
+    if isHopMode then
+        title = "Hop in " .. HopCountdown .. "s | Kill: " .. targetName
+    end
+    currentData = {
+        Name = targetName,
+        HP = targetHP or 0,
+        MaxHP = targetMaxHP or 100,
+        AvatarUrl = avatarUrl
+    }
+    if isExpanded then
+        collapseIsland()
+    end
+    titleLabel.Text = title
+    statusDot.BackgroundColor3 = isHopMode and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(0, 255, 120)
+    local targetWidth = calculatePillWidth(title)
+    TweenService:Create(island, expandTweenInfo, {Size = UDim2.new(0, targetWidth, 0, PILL_HEIGHT)}):Play()
+end
+
+local function updateHealthBar(target)
+    if not target then return end
+    local humanoid = target:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    local hp = humanoid.Health
+    local maxHp = humanoid.MaxHealth
+    local percent = math.clamp(hp / maxHp * 100, 0, 100)
+    healthBarFill.Size = UDim2.new(percent / 100, 0, 1, 0)
+    hpText.Text = math.floor(percent) .. "%"
+    if percent > 60 then
+        healthBarFill.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+    elseif percent > 30 then
+        healthBarFill.BackgroundColor3 = Color3.fromRGB(255, 180, 0)
+    else
+        healthBarFill.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    end
+end
+
+local function getAvatarUrl(player)
+    return "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=60&height=60&format=png"
+end
+
+-- ========== CHARACTER UPDATE & ANTI-STUN SETUP ==========
+local function updateCharacter()
+    Character = LocalPlayer.Character
+    if Character then
+        HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+        Communicate = Character:FindFirstChild("Communicate")
+        setupCharacter(Character)
+    else
+        HumanoidRootPart = nil
+        Communicate = nil
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    HumanoidRootPart = newChar:FindFirstChild("HumanoidRootPart")
+    Communicate = newChar:FindFirstChild("Communicate")
+    CurrentTarget = nil
+    CurrentTargetPlayer = nil
+    IsHoping = false
+    print("Respawned! Resetting target.")
+    setupCharacter(newChar)
+end)
+
+if not LocalPlayer.Character then
+    LocalPlayer.CharacterAdded:Wait()
+end
+updateCharacter()
+
+-- ========== FIRE EVENT ==========
+local function fireEvent(data)
+    if not Communicate then
+        Communicate = Character and Character:FindFirstChild("Communicate")
+        if not Communicate then return false end
+    end
+    local success, err = pcall(function()
+        Communicate:FireServer(data)
+    end)
+    if not success then
+        warn("FireServer error: " .. tostring(err))
+        return false
+    end
+    return true
+end
+
+-- ========== SPAM CLICK ==========
+spawn(function()
+    while true do
+        if not Character or not Character.Parent then
+            updateCharacter()
+            wait(0.5)
+        end
+        fireEvent({
+            Goal = "LeftClick",
+            MousePos = CFrame.new(7.3405456542969, 436.51202392578, 35.485931396484,
+                0.78879261016846, 0.085555024445057, -0.60867613554001,
+                7.4505805969238e-09, 0.99026560783386, 0.13919094204903,
+                0.61465948820114, -0.10979279130697, 0.78111416101456)
+        })
+        wait(0.08)
+    end
+end)
+
+-- ========== SPAM KEYS 1-4 (VirtualInput) ==========
+_G.SpamActive = true
+local function startSpam(delayTime)
+    delayTime = delayTime or 0.1
+    task.spawn(function()
+        local keys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four}
+        while _G.SpamActive do
+            for _, key in ipairs(keys) do
+                if not _G.SpamActive then break end
+                VirtualInputManager:SendKeyEvent(true, key, false, game)
+                task.wait(0.02)
+                VirtualInputManager:SendKeyEvent(false, key, false, game)
+                task.wait(delayTime)
+            end
+        end
+    end)
+end
+startSpam(0.1)
+
+-- ========== SPAM G ==========
+spawn(function()
+    while true do
+        if not Character or not Character.Parent then
+            updateCharacter()
+            wait(0.5)
+        end
+        fireEvent({
+            Key = Enum.KeyCode.G,
+            MoveDirection = Vector3.new(0, 0, 0),
+            Goal = "KeyPress",
+            MousePos = CFrame.new(500.14666748047, 437.50631713867, -113.79318237305,
+                0.47956988215446, -0.2551501095295, 0.8395898938179,
+                -0, 0.95679360628128, 0.29076811671257,
+                -0.87750375270844, -0.13944363594055, 0.45884937047958)
+        })
+        wait(0.25)
+    end
+end)
+
+-- ========== REACTION F (when enemy uses skill) ==========
+spawn(function()
+    while true do
+        local shouldPressF = false
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local enemy = player.Character
+                local animator = enemy:FindFirstChildOfClass("Animator")
+                if animator then
+                    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                        local name = track.Name:lower()
+                        if name:match("attack") or name:match("skill") or name:match("combo") then
+                            shouldPressF = true
+                            break
+                        end
+                    end
+                end
+                if shouldPressF then break end
+            end
+        end
+        if shouldPressF then
+            fireEvent({
+                Goal = "KeyPress",
+                Key = Enum.KeyCode.F,
+                MousePos = CFrame.new(506.02188110352, 437.50637817383, -100.43447875977,
+                    -0.16158632934093, -0.42793792486191, 0.8892462849617,
+                    -3.7252902984619e-09, 0.90108788013458, 0.43363651633263,
+                    -0.9868586063385, 0.069999999999999, -0.14560347795486)
+            })
+            wait(0.05)
+        end
+        wait(0.1)
+    end
+end)
+
+-- ========== FOLLOW LOWEST HP + LOCK CAMERA + AUTO SWITCH ON KILL ==========
+spawn(function()
+    local function getLowestHPTarget()
+        local lowestHP = math.huge
+        local targetChar = nil
+        local targetPlayer = nil
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local char = player.Character
+                if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
+                    local h = char.Humanoid
+                    if h.Health > 0 and h.Health < lowestHP then
+                        lowestHP = h.Health
+                        targetChar = char
+                        targetPlayer = player
+                    end
+                end
+            end
+        end
+        return targetChar, targetPlayer, lowestHP
+    end
+
+    while true do
+        if IsHoping then
+            wait(0.5)
+            continue
+        end
+
+        if not Character or not Character.Parent then
+            updateCharacter()
+            wait(0.5)
+            if not Character then
+                wait(0.5)
+                continue
+            end
+        end
+
+        -- === CHECK TARGET STATUS ===
+        if CurrentTarget and CurrentTarget.Parent then
+            local humanoid = CurrentTarget:FindFirstChildOfClass("Humanoid")
+            if not humanoid or humanoid.Health <= 0 then
+                CurrentTarget = nil
+                CurrentTargetPlayer = nil
+                print("Target eliminated! Searching for new target...")
+                titleLabel.Text = "Searching target..."
+                statusDot.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+            end
+        else
+            if CurrentTarget then
+                CurrentTarget = nil
+                CurrentTargetPlayer = nil
+                print("Target lost! Searching for new target...")
+            end
+        end
+
+        -- If no target, find new one
+        if not CurrentTarget or not CurrentTarget.Parent then
+            local target, player, hp = getLowestHPTarget()
+            if target and player then
+                CurrentTarget = target
+                CurrentTargetPlayer = player
+                local humanoid = target:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    CurrentTargetHP = humanoid.Health
+                    CurrentTargetMaxHP = humanoid.MaxHealth
+                else
+                    CurrentTargetHP = 0
+                    CurrentTargetMaxHP = 100
+                end
+                updateIsland(player.Name, CurrentTargetHP, CurrentTargetMaxHP, getAvatarUrl(player), false)
+                print("New target: " .. player.Name)
+            else
+                if titleLabel.Text ~= "No target" then
+                    titleLabel.Text = "No target"
+                    statusDot.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+                end
+                wait(0.5)
+                continue
+            end
+        end
+
+        -- Follow target
+        if not HumanoidRootPart then
+            updateCharacter()
+            if not HumanoidRootPart then
+                wait(0.5)
+                continue
+            end
+        end
+
+        local targetRoot = CurrentTarget:FindFirstChild("HumanoidRootPart")
+        if targetRoot then
+            local humanoid = CurrentTarget:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                CurrentTargetHP = humanoid.Health
+                CurrentTargetMaxHP = humanoid.MaxHealth
+                if isExpanded then
+                    updateHealthBar(CurrentTarget)
+                end
+            end
+
+            local behindPos = targetRoot.Position - targetRoot.CFrame.LookVector * 4
+            behindPos = Vector3.new(behindPos.X, targetRoot.Position.Y, behindPos.Z)
+            HumanoidRootPart.CFrame = CFrame.new(behindPos, targetRoot.Position)
+            Camera.CameraSubject = targetRoot
+            Camera.CFrame = CFrame.new(behindPos, targetRoot.Position)
+        else
+            CurrentTarget = nil
+            CurrentTargetPlayer = nil
+        end
+
+        wait(0.03)
+    end
+end)
+
+-- ========== TIMER MONITOR: HOP EVERY 15 MINUTES ==========
+spawn(function()
+    while true do
+        if IsHoping then
+            wait(1)
+            continue
+        end
+
+        for remaining = 900, 1, -1 do
+            if IsHoping then break end
+            HopTimer = remaining
+            if remaining % 60 == 0 then
+                print(string.format("Hop in %d minutes", remaining/60))
+            end
+            wait(1)
+        end
+
+        if not IsHoping then
+            IsHoping = true
+            print("Starting hop countdown!")
+            for i = 10, 1, -1 do
+                HopCountdown = i
+                if CurrentTargetPlayer then
+                    updateIsland(CurrentTargetPlayer.Name, CurrentTargetHP, CurrentTargetMaxHP, getAvatarUrl(CurrentTargetPlayer), true)
+                else
+                    titleLabel.Text = "Hop in " .. i .. "s"
+                    statusDot.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+                end
+                wait(1)
+            end
+            print("Hoping server!")
+            TeleportService:Teleport(game.PlaceId)
+            break
+        end
+    end
+end)
+
+-- Keep script alive
+while true do wait(60) end
