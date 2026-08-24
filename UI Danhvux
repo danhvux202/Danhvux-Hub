@@ -1,0 +1,949 @@
+-- UI.lua
+-- Thư viện UI nhẹ, tạo cửa sổ với sidebar, tab và các control cơ bản.
+-- Cách dùng: local UI = require(...); local win = UI:CreateWindow({...})
+
+local UI = {}
+UI.__index = UI
+
+-- Màu sắc mặc định (có thể thay đổi qua config)
+local C = {
+    BG        = Color3.fromRGB(22,22,22),
+    SIDEBAR   = Color3.fromRGB(16,16,16),
+    TITLEBAR  = Color3.fromRGB(14,14,14),
+    ITEM      = Color3.fromRGB(30,30,30),
+    ITEM2     = Color3.fromRGB(26,26,26),
+    BORDER    = Color3.fromRGB(45,45,45),
+    ACCENT    = Color3.fromRGB(245,200,66),
+    ACCENT_BG = Color3.fromRGB(38,34,10),
+    TEXT1     = Color3.fromRGB(230,230,230),
+    TEXT2     = Color3.fromRGB(130,130,130),
+    TEXT3     = Color3.fromRGB(80,80,80),
+    WHITE     = Color3.fromRGB(255,255,255),
+}
+
+-- Helper tạo Instance và UI components
+local function New(class, props, children)
+    local obj = Instance.new(class)
+    for k, v in pairs(props or {}) do obj[k] = v end
+    for _, c in pairs(children or {}) do c.Parent = obj end
+    return obj
+end
+
+local function mkCorner(r)
+    return New("UICorner", { CornerRadius = UDim.new(0, r) })
+end
+
+local function mkPadding(t, b, l, r)
+    return New("UIPadding", {
+        PaddingTop = UDim.new(0, t),
+        PaddingBottom = UDim.new(0, b),
+        PaddingLeft = UDim.new(0, l),
+        PaddingRight = UDim.new(0, r)
+    })
+end
+
+local function mkListLayout(dir, pad, align)
+    return New("UIListLayout", {
+        FillDirection = dir or Enum.FillDirection.Vertical,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, pad or 0),
+        HorizontalAlignment = align or Enum.HorizontalAlignment.Left
+    })
+end
+
+local function tw(obj, time, style, dir, props)
+    return game:GetService("TweenService"):Create(
+        obj,
+        TweenInfo.new(time, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out),
+        props
+    )
+end
+
+-- ====== Tạo cửa sổ ======
+function UI:CreateWindow(config)
+    local self = setmetatable({}, UI)
+    self.config = config or {}
+    self.title = self.config.Title or "UI"
+    self.size = self.config.Size or UDim2.fromOffset(580, 440)
+    self.position = self.config.Position or UDim2.fromOffset(200, 150)
+    self.accentColor = self.config.AccentColor or C.ACCENT
+    self.bgColor = self.config.BackgroundColor or C.BG
+    self.sidebarColor = self.config.SidebarColor or C.SIDEBAR
+    self.titlebarColor = self.config.TitlebarColor or C.TITLEBAR
+
+    -- ScreenGui
+    local screenGui = New("ScreenGui", {
+        Name = "UI_ScreenGui",
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        Parent = game:GetService("CoreGui") or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    })
+    self.screenGui = screenGui
+
+    -- Cửa sổ chính
+    self.window = New("Frame", {
+        Name = "Window",
+        Size = self.size,
+        Position = self.position,
+        BackgroundColor3 = self.bgColor,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        ZIndex = 2,
+        Parent = screenGui
+    }, { mkCorner(18) })
+
+    New("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(30,30,30)),
+            ColorSequenceKeypoint.new(1, self.bgColor)
+        }),
+        Rotation = 90,
+        Parent = self.window
+    })
+
+    -- Viền
+    self.windowStroke = New("UIStroke", {
+        Color = C.BORDER,
+        Thickness = 1.2,
+        Transparency = 0,
+        Parent = self.window
+    })
+    self.windowStrokeGradient = New("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, self.accentColor),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,255,255)),
+            ColorSequenceKeypoint.new(1, self.accentColor)
+        }),
+        Rotation = 45,
+        Parent = self.windowStroke
+    })
+
+    -- Thanh tiêu đề
+    self.titlebar = New("Frame", {
+        Name = "Titlebar",
+        Size = UDim2.new(1, 0, 0, 38),
+        BackgroundColor3 = self.titlebarColor,
+        BorderSizePixel = 0,
+        Parent = self.window
+    }, { mkCorner(18) })
+
+    New("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(24,24,24)),
+            ColorSequenceKeypoint.new(1, self.titlebarColor)
+        }),
+        Rotation = 90,
+        Parent = self.titlebar
+    })
+
+    New("TextLabel", {
+        Text = self.title,
+        Font = Enum.Font.GothamBold,
+        TextSize = 13,
+        TextColor3 = C.TEXT1,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 200, 0, 18),
+        Position = UDim2.fromOffset(14, 6),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = self.titlebar
+    })
+
+    if self.config.SubTitle then
+        New("TextLabel", {
+            Text = self.config.SubTitle,
+            Font = Enum.Font.Gotham,
+            TextSize = 10,
+            TextColor3 = C.TEXT3,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(0, 300, 0, 14),
+            Position = UDim2.fromOffset(14, 22),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = self.titlebar
+        })
+    end
+
+    -- Vạch accent dưới titlebar
+    self.accentLine = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 2),
+        Position = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = self.accentColor,
+        BackgroundTransparency = 0.35,
+        BorderSizePixel = 0,
+        ZIndex = 5,
+        Parent = self.titlebar
+    })
+    New("UIGradient", {
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.new(0,0,0)),
+            ColorSequenceKeypoint.new(0.5, Color3.new(1,1,1)),
+            ColorSequenceKeypoint.new(1, Color3.new(0,0,0))
+        }),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.55),
+            NumberSequenceKeypoint.new(0.5, 0),
+            NumberSequenceKeypoint.new(1, 0.55)
+        }),
+        Parent = self.accentLine
+    })
+
+    -- Body (chứa sidebar + content)
+    self.body = New("Frame", {
+        Size = UDim2.new(1, 0, 1, -38),
+        Position = UDim2.fromOffset(0, 38),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Parent = self.window
+    })
+
+    -- Sidebar
+    self.sidebar = New("Frame", {
+        Name = "Sidebar",
+        Size = UDim2.new(0, 155, 1, 0),
+        BackgroundColor3 = self.sidebarColor,
+        BorderSizePixel = 0,
+        Parent = self.body
+    })
+    New("UIStroke", { Color = C.BORDER, Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = self.sidebar })
+
+    self.sidebarScroll = New("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 0,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        Parent = self.sidebar
+    })
+    mkListLayout(Enum.FillDirection.Vertical, 0).Parent = self.sidebarScroll
+    mkPadding(6, 6, 0, 0).Parent = self.sidebarScroll
+
+    -- Vùng nội dung
+    self.contentArea = New("Frame", {
+        Size = UDim2.new(1, -155, 1, 0),
+        Position = UDim2.fromOffset(155, 0),
+        BackgroundColor3 = self.bgColor,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        Parent = self.body
+    })
+
+    self.tabButtons = {}
+    self.activeTab = nil
+
+    -- Kéo thả cửa sổ
+    self:setupDrag()
+    return self
+end
+
+-- Kéo cửa sổ bằng titlebar
+function UI:setupDrag()
+    local dragging = false
+    local dragInput, dragStart, startPos
+    self.titlebar.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = i.Position
+            startPos = self.window.Position
+            i.Changed:Connect(function()
+                if i.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    self.titlebar.InputChanged:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch then
+            dragInput = i
+        end
+    end)
+    game:GetService("UserInputService").InputChanged:Connect(function(i)
+        if i == dragInput and dragging then
+            local d = i.Position - dragStart
+            self.window.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + d.X,
+                startPos.Y.Scale, startPos.Y.Offset + d.Y
+            )
+        end
+    end)
+end
+
+-- ====== Tab ======
+function UI:AddTab(label, order)
+    order = order or (#self.tabButtons + 1)
+    local btn = New("TextButton", {
+        Name = label,
+        Size = UDim2.new(1, 0, 0, 36),
+        BackgroundColor3 = self.sidebarColor,
+        BorderSizePixel = 0,
+        Text = "",
+        LayoutOrder = order,
+        Parent = self.sidebarScroll
+    })
+    local line = New("Frame", {
+        Size = UDim2.new(0, 2, 0, 0),
+        Position = UDim2.fromOffset(0, 18),
+        BackgroundColor3 = self.accentColor,
+        BorderSizePixel = 0,
+        Parent = btn
+    }, { mkCorner(1) })
+
+    local textLabel = New("TextLabel", {
+        Text = label,
+        Font = Enum.Font.Gotham,
+        TextSize = 12.5,
+        TextColor3 = C.TEXT2,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -24, 1, 0),
+        Position = UDim2.fromOffset(24, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = btn
+    })
+
+    local pane = New("ScrollingFrame", {
+        Name = label .. "Pane",
+        Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = C.BORDER,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        Visible = false,
+        Parent = self.contentArea
+    })
+    mkPadding(14, 14, 16, 16).Parent = pane
+    mkListLayout(Enum.FillDirection.Vertical, 0).Parent = pane
+
+    self.tabButtons[label] = { btn = btn, line = line, textLabel = textLabel, pane = pane }
+
+    btn.MouseEnter:Connect(function()
+        if self.activeTab ~= label then
+            tw(textLabel, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Position = UDim2.fromOffset(21, 0), TextColor3 = C.TEXT1 }):Play()
+        end
+    end)
+    btn.MouseLeave:Connect(function()
+        if self.activeTab ~= label then
+            tw(textLabel, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Position = UDim2.fromOffset(18, 0), TextColor3 = C.TEXT2 }):Play()
+        end
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        self:SelectTab(label)
+    end)
+
+    return pane, self
+end
+
+function UI:SelectTab(label)
+    if self.activeTab == label then return end
+    for name, v in pairs(self.tabButtons) do
+        if name == self.activeTab then
+            tw(v.line, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = UDim2.new(0, 2, 0, 0), Position = UDim2.fromOffset(0, 18) }):Play()
+            tw(v.textLabel, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { TextColor3 = C.TEXT2, Position = UDim2.fromOffset(18, 0) }):Play()
+            tw(v.btn, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = self.sidebarColor }):Play()
+            local oldPane = v.pane
+            tw(oldPane, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In, { Position = UDim2.fromOffset(-24, 0) }):Play()
+            task.delay(0.18, function()
+                oldPane.Visible = false
+                oldPane.Position = UDim2.new(0, 0, 0, 0)
+            end)
+        end
+    end
+    local v = self.tabButtons[label]
+    if v then
+        v.pane.Visible = true
+        v.pane.CanvasPosition = Vector2.new(0, 0)
+        v.pane.Position = UDim2.fromOffset(24, 0)
+        tw(v.pane, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Position = UDim2.new(0, 0, 0, 0) }):Play()
+        tw(v.line, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Size = UDim2.new(0, 2, 0, 20), Position = UDim2.fromOffset(0, 8) }):Play()
+        tw(v.textLabel, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { TextColor3 = self.accentColor, Position = UDim2.fromOffset(18, 0) }):Play()
+        tw(v.btn, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = self.bgColor })
+        self.activeTab = label
+    end
+end
+
+-- ====== Control helpers ======
+function UI:AddSection(parent, title)
+    local frame = New("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BorderSizePixel = 0,
+        Parent = parent
+    }, { mkListLayout(Enum.FillDirection.Vertical, 0) })
+    local hdr = New("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 28),
+        BorderSizePixel = 0,
+        Parent = frame
+    })
+    New("TextLabel", {
+        Text = title:upper(),
+        Font = Enum.Font.GothamBold,
+        TextSize = 10,
+        TextColor3 = C.TEXT3,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -16, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = hdr
+    })
+    New("Frame", {
+        BackgroundColor3 = C.BORDER,
+        Size = UDim2.new(1, 0, 0, 1),
+        Position = UDim2.new(0, 0, 1, -1),
+        BorderSizePixel = 0,
+        Parent = hdr
+    })
+    return frame
+end
+
+-- Tạo một hàng item (dùng nội bộ)
+function UI:createItem(parent, title, desc)
+    local row = New("Frame", {
+        BackgroundColor3 = C.ITEM,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Parent = parent
+    }, { mkCorner(9) })
+    local stroke = New("UIStroke", { Color = C.BORDER, Thickness = 0.5, Parent = row })
+    mkPadding(10, 10, 12, 12).Parent = row
+    local inner = New("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -50, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BorderSizePixel = 0,
+        Parent = row
+    }, { mkListLayout(Enum.FillDirection.Vertical, 2) })
+    New("TextLabel", {
+        Text = title,
+        Font = Enum.Font.GothamSemibold,
+        TextSize = 12.5,
+        TextColor3 = C.TEXT1,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 16),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = inner
+    })
+    if desc and desc ~= "" then
+        New("TextLabel", {
+            Text = desc,
+            Font = Enum.Font.Gotham,
+            TextSize = 11,
+            TextColor3 = C.TEXT3,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 14),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextWrapped = true,
+            Parent = inner
+        })
+    end
+    row.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            tw(row, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Color3.fromRGB(34,34,34) }):Play()
+            tw(stroke, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = self.accentColor }):Play()
+        end
+    end)
+    row.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            tw(row, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = C.ITEM }):Play()
+            tw(stroke, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = C.BORDER }):Play()
+        end
+    end)
+    New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 4), BorderSizePixel = 0, Parent = parent })
+    return row, inner
+end
+
+-- ====== Button ======
+function UI:AddButton(parent, config)
+    local title = config.Title or "Button"
+    local desc = config.Description or ""
+    local callback = config.Callback or function() end
+    local row, inner = self:createItem(parent, title, desc)
+    local btn = New("TextButton", {
+        Size = UDim2.new(0, 60, 0, 24),
+        Position = UDim2.new(1, -70, 0.5, -12),
+        BackgroundColor3 = self.accentColor,
+        Text = "Click",
+        TextColor3 = Color3.fromRGB(255,255,255),
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        BorderSizePixel = 0,
+        Parent = row
+    }, { mkCorner(4) })
+    btn.MouseButton1Click:Connect(callback)
+    btn.MouseEnter:Connect(function()
+        tw(btn, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = UDim2.new(0, 66, 0, 26) }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        tw(btn, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = UDim2.new(0, 60, 0, 24) }):Play()
+    end)
+    return row
+end
+
+-- ====== Toggle ======
+function UI:AddToggle(parent, config)
+    local title = config.Title or "Toggle"
+    local desc = config.Description or ""
+    local default = config.Default or false
+    local callback = config.Callback or function() end
+    local row, inner = self:createItem(parent, title, desc)
+
+    local onVal = default
+    local track = New("Frame", {
+        Size = UDim2.fromOffset(36, 20),
+        Position = UDim2.new(1, -48, 0.5, -10),
+        BackgroundColor3 = onVal and self.accentColor or C.ITEM2,
+        BorderSizePixel = 0,
+        Parent = row
+    }, { mkCorner(10) })
+    local knob = New("Frame", {
+        Size = UDim2.fromOffset(14, 14),
+        Position = onVal and UDim2.fromOffset(19, 3) or UDim2.fromOffset(3, 3),
+        BackgroundColor3 = C.WHITE,
+        BorderSizePixel = 0,
+        Parent = track
+    }, { mkCorner(7) })
+    local btn = New("TextButton", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "",
+        Parent = row
+    })
+
+    btn.MouseButton1Click:Connect(function()
+        onVal = not onVal
+        tw(track, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = onVal and self.accentColor or C.ITEM2 }):Play()
+        tw(knob, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(18, 12) }):Play()
+        task.delay(0.12, function()
+            tw(knob, 0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Size = UDim2.fromOffset(14, 14),
+                Position = onVal and UDim2.fromOffset(19, 3) or UDim2.fromOffset(3, 3)
+            }):Play()
+        end)
+        callback(onVal)
+    end)
+    if default then callback(default) end
+    return row
+end
+
+-- ====== Slider ======
+function UI:AddSlider(parent, config)
+    local title = config.Title or "Slider"
+    local min = config.Min or 0
+    local max = config.Max or 100
+    local default = config.Default or 50
+    local callback = config.Callback or function() end
+
+    local frame = New("Frame", {
+        BackgroundColor3 = C.ITEM,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 56),
+        Parent = parent
+    }, { mkCorner(9) })
+    local stroke = New("UIStroke", { Color = C.BORDER, Thickness = 0.5, Parent = frame })
+    mkPadding(8, 10, 12, 12).Parent = frame
+
+    local topRow = New("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 18),
+        BorderSizePixel = 0,
+        Parent = frame
+    })
+    New("TextLabel", {
+        Text = title,
+        Font = Enum.Font.GothamSemibold,
+        TextSize = 12,
+        TextColor3 = C.TEXT1,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -50, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = topRow
+    })
+    local valLbl = New("TextLabel", {
+        Text = tostring(default),
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        TextColor3 = self.accentColor,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 44, 1, 0),
+        Position = UDim2.new(1, -44, 0, 0),
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Parent = topRow
+    })
+
+    local pct = math.clamp((default - min) / (max - min), 0, 1)
+    local trackBg = New("Frame", {
+        BackgroundColor3 = C.BORDER,
+        Size = UDim2.new(1, 0, 0, 4),
+        Position = UDim2.new(0, 0, 1, -8),
+        BorderSizePixel = 0,
+        Parent = frame
+    }, { mkCorner(2) })
+    local fill = New("Frame", {
+        BackgroundColor3 = self.accentColor,
+        Size = UDim2.new(pct, 0, 1, 0),
+        BorderSizePixel = 0,
+        Parent = trackBg
+    }, { mkCorner(2) })
+    local thumb = New("Frame", {
+        BackgroundColor3 = C.WHITE,
+        Size = UDim2.fromOffset(14, 14),
+        Position = UDim2.new(pct, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BorderSizePixel = 0,
+        ZIndex = 2,
+        Parent = trackBg
+    }, { mkCorner(7) })
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            tw(frame, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Color3.fromRGB(34,34,34) }):Play()
+            tw(stroke, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = self.accentColor }):Play()
+            tw(thumb, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(16,16) }):Play()
+        end
+    end)
+    frame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            tw(frame, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = C.ITEM }):Play()
+            tw(stroke, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = C.BORDER }):Play()
+            tw(thumb, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(14,14) }):Play()
+        end
+    end)
+
+    local dragging = false
+    local function update(x)
+        local ap = trackBg.AbsolutePosition.X
+        local as = trackBg.AbsoluteSize.X
+        if as < 1 then return end
+        local rel = math.clamp((x - ap) / as, 0, 1)
+        local val = math.floor(min + rel * (max - min))
+        tw(fill, 0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = UDim2.new(rel, 0, 1, 0) }):Play()
+        tw(thumb, 0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Position = UDim2.new(rel, 0, 0.5, 0) }):Play()
+        valLbl.Text = tostring(val)
+        callback(val)
+    end
+
+    local sb = New("TextButton", {
+        Size = UDim2.new(1, 10, 0, 20),
+        Position = UDim2.new(0, -5, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        Text = "",
+        ZIndex = 3,
+        Parent = trackBg
+    })
+    sb.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            update(i.Position.X)
+        end
+    end)
+    local UIS = game:GetService("UserInputService")
+    UIS.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            update(i.Position.X)
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 4), BorderSizePixel = 0, Parent = parent })
+    if default then callback(default) end
+    return frame
+end
+
+-- ====== Dropdown (có tìm kiếm, lăn chuột để đổi nhanh) ======
+function UI:AddDropdown(parent, config)
+    local title = config.Title or "Dropdown"
+    local options = config.Values or {}
+    local default = config.Default or options[1]
+    local callback = config.Callback or function() end
+
+    local frame = New("Frame", {
+        BackgroundColor3 = C.ITEM,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        ClipsDescendants = false,
+        Parent = parent
+    }, { mkCorner(9) })
+    local stroke = New("UIStroke", { Color = C.BORDER, Thickness = 0.5, Parent = frame })
+    mkPadding(10, 10, 12, 12).Parent = frame
+
+    local hdr = New("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 18),
+        BorderSizePixel = 0,
+        Parent = frame
+    })
+    New("TextLabel", {
+        Text = title,
+        Font = Enum.Font.GothamSemibold,
+        TextSize = 12.5,
+        TextColor3 = C.TEXT1,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.5, 0, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = hdr
+    })
+    local curVal = default or options[1]
+    local selLbl = New("TextLabel", {
+        Text = curVal,
+        Font = Enum.Font.Gotham,
+        TextSize = 11.5,
+        TextColor3 = C.TEXT2,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.5, -22, 1, 0),
+        Position = UDim2.new(0.5, 0, 0, 0),
+        TextXAlignment = Enum.TextXAlignment.Right,
+        Parent = hdr
+    })
+    local arrow = New("TextLabel", {
+        Text = "v",
+        Font = Enum.Font.GothamBold,
+        TextSize = 10,
+        TextColor3 = C.TEXT3,
+        BackgroundTransparency = 1,
+        Size = UDim2.fromOffset(16, 16),
+        Position = UDim2.new(1, -16, 0, 1),
+        Rotation = 0,
+        Parent = hdr
+    })
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            tw(frame, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Color3.fromRGB(34,34,34) }):Play()
+            tw(stroke, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = self.accentColor }):Play()
+        end
+    end)
+    frame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            tw(frame, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = C.ITEM }):Play()
+            tw(stroke, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = C.BORDER }):Play()
+        end
+    end)
+
+    local LIST_W = 210
+    local OPTION_H = 28
+    local OPTION_GAP = 4
+    local MAX_VISIBLE = 6
+    local open = false
+    local openList, closeList
+
+    local listFrame = New("Frame", {
+        BackgroundColor3 = Color3.fromRGB(28,28,28),
+        BorderSizePixel = 0,
+        Size = UDim2.fromOffset(0, 0),
+        Visible = false,
+        ClipsDescendants = true,
+        ZIndex = 50,
+        Parent = self.screenGui
+    }, { mkCorner(12), New("UIStroke", { Color = C.BORDER, Thickness = 1 }), mkPadding(6,6,6,6) })
+    mkListLayout(Enum.FillDirection.Vertical, 6).Parent = listFrame
+
+    local searchBox = New("TextBox", {
+        Name = "SearchBox",
+        Size = UDim2.new(1, 0, 0, 26),
+        BackgroundColor3 = C.ITEM2,
+        TextColor3 = C.TEXT1,
+        PlaceholderText = "Tìm kiếm...",
+        PlaceholderColor3 = C.TEXT3,
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        ClearTextOnFocus = false,
+        Text = "",
+        LayoutOrder = 0,
+        ZIndex = 51,
+        Parent = listFrame
+    }, { mkCorner(6), mkPadding(0,0,8,8) })
+
+    local optionsScroll = New("ScrollingFrame", {
+        Name = "OptionsScroll",
+        Size = UDim2.new(1, 0, 0, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = C.BORDER,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ElasticBehavior = Enum.ElasticBehavior.Always,
+        LayoutOrder = 1,
+        ZIndex = 51,
+        Parent = listFrame
+    })
+    mkListLayout(Enum.FillDirection.Vertical, OPTION_GAP).Parent = optionsScroll
+
+    local function computeHeight(n)
+        local visible = math.min(math.max(n, 1), MAX_VISIBLE)
+        local optionsAreaH = visible * OPTION_H + (visible - 1) * OPTION_GAP
+        return optionsAreaH, 26 + 6 + optionsAreaH + 12
+    end
+
+    local function populate(filterText)
+        for _, c in pairs(optionsScroll:GetChildren()) do
+            if c.Name == "OptItem" then c:Destroy() end
+        end
+        local ft = filterText and string.lower(filterText) or ""
+        local shown = {}
+        for _, opt in ipairs(options) do
+            if ft == "" or string.find(string.lower(opt), ft, 1, true) then
+                table.insert(shown, opt)
+            end
+        end
+        if #shown == 0 then
+            New("TextLabel", {
+                Name = "OptItem",
+                Text = "Không tìm thấy",
+                Font = Enum.Font.Gotham,
+                TextSize = 11.5,
+                TextColor3 = C.TEXT3,
+                BackgroundTransparency = 1,
+                Size = UDim2.new(1, 0, 0, OPTION_H),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                LayoutOrder = 1,
+                ZIndex = 51,
+                Parent = optionsScroll
+            })
+        else
+            for i, opt in ipairs(shown) do
+                local ob = New("TextButton", {
+                    Name = "OptItem",
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 0, OPTION_H),
+                    Text = "",
+                    BorderSizePixel = 0,
+                    LayoutOrder = i,
+                    ZIndex = 51,
+                    Parent = optionsScroll
+                }, { mkCorner(6) })
+                local tLabel = New("TextLabel", {
+                    Text = opt,
+                    Font = Enum.Font.Gotham,
+                    TextSize = 12,
+                    TextColor3 = opt == curVal and self.accentColor or C.TEXT2,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, -10, 1, 0),
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Position = UDim2.fromOffset(10, 0),
+                    ZIndex = 51,
+                    Parent = ob
+                })
+                ob.MouseEnter:Connect(function()
+                    tw(ob, 0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(45,45,45) }):Play()
+                    tw(tLabel, 0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Position = UDim2.fromOffset(14, 0) }):Play()
+                end)
+                ob.MouseLeave:Connect(function()
+                    tw(ob, 0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundTransparency = 1 }):Play()
+                    tw(tLabel, 0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Position = UDim2.fromOffset(10, 0) }):Play()
+                end)
+                ob.MouseButton1Click:Connect(function()
+                    curVal = opt
+                    selLbl.Text = opt
+                    closeList()
+                    callback(curVal)
+                end)
+            end
+        end
+        return #shown
+    end
+
+    closeList = function()
+        if not open then return end
+        open = false
+        tw(arrow, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Rotation = 0 }):Play()
+        tw(listFrame, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.In, { Size = UDim2.fromOffset(0, 0) }):Play()
+        task.delay(0.22, function() if not open then listFrame.Visible = false end end)
+    end
+
+    openList = function()
+        if open then return end
+        open = true
+        searchBox.Text = ""
+        local n = populate("")
+        local optionsAreaH, estHeight = computeHeight(n)
+        optionsScroll.Size = UDim2.new(1, 0, 0, optionsAreaH)
+        local winPos = self.window.AbsolutePosition
+        local winSize = self.window.AbsoluteSize
+        local hdrPos = hdr.AbsolutePosition
+        local listX = winPos.X + winSize.X + 10
+        local listY = hdrPos.Y
+        local screenSize = self.screenGui.AbsoluteSize
+        if screenSize and screenSize.Y and screenSize.Y > 0 then
+            if listY + estHeight > screenSize.Y then
+                listY = math.max(10, screenSize.Y - estHeight - 10)
+            end
+        end
+        listFrame.Position = UDim2.fromOffset(listX, listY)
+        listFrame.Size = UDim2.fromOffset(0, 0)
+        listFrame.Visible = true
+        tw(listFrame, 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(LIST_W, estHeight) }):Play()
+        tw(arrow, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Rotation = 180 }):Play()
+        task.defer(function() pcall(function() searchBox:CaptureFocus() end) end)
+    end
+
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        if not open then return end
+        local n = populate(searchBox.Text)
+        local optionsAreaH, estHeight = computeHeight(n)
+        optionsScroll.Size = UDim2.new(1, 0, 0, optionsAreaH)
+        tw(listFrame, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(LIST_W, estHeight) }):Play()
+    end)
+
+    -- Lăn chuột / vuốt để đổi nhanh
+    local function cycleOption(dir)
+        local idx = 1
+        for i, o in ipairs(options) do
+            if o == curVal then idx = i break end
+        end
+        idx = idx + dir
+        if idx < 1 then idx = #options end
+        if idx > #options then idx = 1 end
+        curVal = options[idx]
+        selLbl.Text = curVal
+        tw(selLbl, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { TextColor3 = self.accentColor }):Play()
+        task.delay(0.15, function() tw(selLbl, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { TextColor3 = C.TEXT2 }):Play() end)
+        callback(curVal)
+    end
+
+    local hb = New("TextButton", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", Parent = hdr })
+    local dragStartY, wasDragged = nil, false
+    hb.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragStartY = i.Position.Y
+            wasDragged = false
+        end
+    end)
+    hb.InputChanged:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseWheel then
+            cycleOption(i.Position.Z > 0 and -1 or 1)
+        elseif dragStartY and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local dy = i.Position.Y - dragStartY
+            if math.abs(dy) >= 20 then
+                cycleOption(dy < 0 and -1 or 1)
+                dragStartY = i.Position.Y
+                wasDragged = true
+            end
+        end
+    end)
+    hb.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragStartY = nil
+        end
+    end)
+    hb.MouseButton1Click:Connect(function()
+        if wasDragged then wasDragged = false; return end
+        if open then closeList() else openList() end
+    end)
+
+    New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 4), BorderSizePixel = 0, Parent = parent })
+    if default then callback(default) end
+    return frame
+end
+
+return UI
