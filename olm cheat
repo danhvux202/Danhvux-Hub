@@ -1,0 +1,2295 @@
+// ==UserScript==
+// @name         OLM Cheat V6.2 - Minimal
+// @namespace    https://github.com/danhvux202
+// @version      6.2
+// @description  OLM.VN quiz solver - Minimal UI, inline animated SVG, music player
+// @author       Danhvux
+// @match        https://olm.vn/*
+// @match        https://*.olm.vn/*
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_xmlhttpRequest
+// @connect      api.groq.com
+// @connect      cdnjs.cloudflare.com
+// @connect      olm.vn
+// @connect      *.olm.vn
+// @connect      youtube.com
+// @connect      *.youtube.com
+// @connect      youtu.be
+// @connect      soundcloud.com
+// @connect      *.soundcloud.com
+// @connect      nhaccuatui.com
+// @connect      *.nhaccuatui.com
+// @connect      zingmp3.vn
+// @connect      *.zingmp3.vn
+// @connect      music.apple.com
+// @connect      open.spotify.com
+// @connect      *
+// @run-at       document-idle
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    // Avoid double-injection
+    if (window.__OLM_CHEAT_LOADED__) return;
+    window.__OLM_CHEAT_LOADED__ = true;
+
+    console.log('%c[OLM CHEAT V6.2] Loading...', 'color: #0a84ff; font-size: 16px; font-weight: 600;');
+
+    // ============================================
+    // CONFIG
+    // ============================================
+    const CONFIG = {
+        version: '6.2',
+        githubUrl: 'https://github.com/danhvux202',
+        isPaused: false,
+        groqApiKey: GM_getValue('groqApiKey', 'YOUR_GROQ_KEY'),
+        groqTextModel: 'openai/gpt-oss-120b',
+        groqVisionModel: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        debugMode: false,
+        knowledge: GM_getValue('trainingDoc', ''),
+        selectionSearch: GM_getValue('selectionSearch', true),
+        soundEnabled: GM_getValue('soundEnabled', false),
+        autoAnswer: GM_getValue('autoAnswer', false),
+        detectIntervalMs: 1200,
+        cacheWriteDebounceMs: 3000
+    };
+
+    // ============================================
+    // STATE
+    // ============================================
+    let currentQuestionData = null;
+    let lastQuestionHash = null;
+    let isAIThinking = false;
+    let currentImageBase64 = null;
+    let timeFrozen = false;
+    let frozenTimeSpent = null;
+    let frozenDisplayTime = null;
+    let timerObserver = null;
+    let teacherDocAnswers = null;
+    let isDownloadingDoc = false;
+    let answerCache = GM_getValue('answerCache', {});
+    let stats = GM_getValue('stats', { total: 0, docHits: 0, aiHits: 0, cacheHits: 0, answered: 0 });
+
+    let dynamicIsland = null;
+    let islandSearchId = 0;
+    let islandHideTimer = null;
+    let islandMode = 'idle'; // idle | searching | answered | music
+
+    let audioCtx = null;
+    let selectionBadge = null;
+
+    // Debounce/throttle helpers
+    let detectScheduled = false;
+    let lastDetectAt = 0;
+    let cleanupScheduled = false;
+    let lastCleanupAt = 0;
+    let cacheDirty = false;
+    let cacheWriteTimer = null;
+    let lastQuestionText = '';
+    let lastAnswerTexts = [];
+
+    // ============================================
+    // MUSIC PLAYER STATE
+    // ============================================
+    const Music = {
+        ytPlayer: null,
+        ytReady: false,
+        current: null,
+        isPlaying: false,
+        progressTimer: null,
+        currentTime: 0,
+        duration: 0,
+        volume: 0.8,
+        apiLoaded: false,
+        expanded: false,
+        audioEl: null,
+        lastRenderedState: '', // for avoiding re-render
+        lastProgressAt: 0
+    };
+
+    // ============================================
+    // UTILS
+    // ============================================
+
+    function log(msg, color = '#0a84ff') {
+        if (CONFIG.debugMode) console.log(`%c[OLM v6.2] ${msg}`, `color: ${color}; font-weight: bold;`);
+    }
+
+    function hashString(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = ((hash << 5) - hash) + str.charCodeAt(i);
+            hash = hash & hash;
+        }
+        return hash;
+    }
+
+    function gmFetch(url, options = {}) {
+        return new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                method: options.method || 'GET',
+                url,
+                headers: options.headers || {},
+                data: options.body || null,
+                responseType: options.responseType || 'text',
+                timeout: options.timeout || 30000,
+                onload: (response) => {
+                    resolve({
+                        ok: response.status >= 200 && response.status < 300,
+                        status: response.status,
+                        text: () => Promise.resolve(response.responseText),
+                        json: () => { try { return Promise.resolve(JSON.parse(response.responseText)); } catch (e) { return Promise.reject(e); } },
+                        arrayBuffer: () => Promise.resolve(response.response)
+                    });
+                },
+                onerror: reject,
+                ontimeout: () => reject(new Error('Request timeout'))
+            });
+        });
+    }
+
+    // ============================================
+    // INLINE ICONS
+    // ============================================
+
+    const ICONS = {
+        clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5"/><path d="M12 12h3.5"/></svg>`,
+        speaker: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`,
+        speakerOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>`,
+        robot: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4"/><circle cx="9" cy="14" r="1.2" fill="currentColor"/><circle cx="15" cy="14" r="1.2" fill="currentColor"/><path d="M9 18h6"/></svg>`,
+        download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12"/><path d="M7 11l5 5 5-5"/><path d="M4 20h16"/></svg>`,
+        camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>`,
+        chart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19V13"/><path d="M12 19V6"/><path d="M19 19V10"/></svg>`,
+        search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>`,
+        database: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.5 3 3 7 3s7-1.5 7-3V6"/><path d="M5 12v6c0 1.5 3 3 7 3s7-1.5 7-3v-6"/></svg>`,
+        bolt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>`,
+        palette: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 1.5-2-.5-1 0-2 1.5-2H18a3 3 0 0 0 3-3 9 9 0 0 0-9-9z"/><circle cx="8" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="7" r="1" fill="currentColor"/><circle cx="16" cy="10" r="1" fill="currentColor"/></svg>`,
+        close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>`,
+        command: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z"/></svg>`,
+        music: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+        play: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg>`,
+        pause: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`,
+        next: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M6 5l10 7-10 7z"/><rect x="16" y="5" width="2.5" height="14" rx="1"/></svg>`,
+        prev: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M18 5l-10 7 10 7z"/><rect x="5.5" y="5" width="2.5" height="14" rx="1"/></svg>`,
+        link: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+        olmLogo: `<img src="https://rs.olm.vn/images/logo.png" alt="OLM" style="width: 100%; height: 100%; object-fit: contain; display: block;">`
+    };
+
+    const ICON_ANIMS_CSS = `
+        @keyframes olm-spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes olm-bell-swing { 0%,100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+        @keyframes olm-pulse-fade { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+        @keyframes olm-blink { 0%,45%,55%,100% { opacity: 1; } 50% { opacity: 0.15; } }
+        @keyframes olm-bounce-down { 0%,100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+        @keyframes olm-pulse-scale { 0%,100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+        @keyframes olm-bar-grow { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(0.6); } }
+        @keyframes olm-scan-line { 0%,100% { transform: translateX(-2px); opacity: 0.3; } 50% { transform: translateX(2px); opacity: 1; } }
+        @keyframes olm-draw-check { to { stroke-dashoffset: 0; } }
+        @keyframes olm-disc-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes olm-banner-flow { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+        @keyframes olm-bar-eq { 0%,100% { height: 30%; } 50% { height: 100%; } }
+        @keyframes olm-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    `;
+
+    function createIcon(name) {
+        const wrap = document.createElement('span');
+        wrap.className = 'olm-icon';
+        wrap.innerHTML = ICONS[name] || ICONS.bolt;
+        return wrap;
+    }
+
+    // ============================================
+    // SOUND
+    // ============================================
+    function initAudio() { if (audioCtx) return; try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { } }
+    function playTone(freq, duration = 0.08, type = 'sine', volume = 0.04) {
+        if (!CONFIG.soundEnabled) return;
+        initAudio(); if (!audioCtx) return;
+        try {
+            const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+            osc.type = type; osc.frequency.value = freq;
+            gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        } catch (e) { }
+    }
+    const Sound = {
+        success() { playTone(880, 0.08); setTimeout(() => playTone(1174, 0.12), 70); },
+        error() { playTone(220, 0.15, 'sawtooth'); },
+        click() { playTone(1200, 0.025, 'square', 0.015); }
+    };
+
+    // ============================================
+    // TEXT NORMALIZATION
+    // ============================================
+
+    function cleanText(text) {
+        if (!text) return '';
+        return text
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+            .replace(/[\r\n\t]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function removeDiacritics(str) {
+        if (!str) return '';
+        return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+    }
+
+    function normalizeVietnamese(text) {
+        if (!text) return '';
+        text = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+        text = cleanText(text);
+        return removeDiacritics(text.toLowerCase());
+    }
+
+    function normalizeAggressive(text) {
+        if (!text) return '';
+        let t = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+        t = cleanText(t);
+        t = removeDiacritics(t.toLowerCase());
+        t = t.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        return t;
+    }
+
+    function levenshteinDistance(str1, str2) {
+        const m = str1.length, n = str2.length;
+        if (m === 0) return n;
+        if (n === 0) return m;
+        // Guard against huge strings
+        if (m > 500 || n > 500) {
+            // Fallback: token overlap count
+            return Math.abs(m - n);
+        }
+        const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+        for (let i = 0; i <= m; i++) dp[i][0] = i;
+        for (let j = 0; j <= n; j++) dp[0][j] = j;
+        for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++)
+            dp[i][j] = str1[i - 1] === str2[j - 1]
+                ? dp[i - 1][j - 1]
+                : Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + 1);
+        return dp[m][n];
+    }
+
+    function calculateSimilarity(str1, str2) {
+        const longer = str1.length > str2.length ? str1 : str2;
+        const shorter = str1.length > str2.length ? str2 : str1;
+        if (longer.length === 0) return 1.0;
+        return (longer.length - levenshteinDistance(longer, shorter)) / longer.length;
+    }
+
+    function tokenSimilarity(str1, str2) {
+        const tokens1 = str1.split(/\s+/).filter(t => t.length > 1);
+        const tokens2 = str2.split(/\s+/).filter(t => t.length > 1);
+        if (tokens1.length === 0 || tokens2.length === 0) return 0;
+        const set2 = new Set(tokens2);
+        let matchCount = 0;
+        for (const t of tokens1) {
+            if (set2.has(t)) { matchCount++; continue; }
+            for (const t2 of set2) {
+                if (t2.length >= 3 && (t.includes(t2) || t2.includes(t))) { matchCount += 0.5; break; }
+            }
+        }
+        return matchCount / Math.max(tokens1.length, tokens2.length);
+    }
+
+    function findBestMatch(query, candidates) {
+        if (!candidates || candidates.length === 0) return null;
+        const cleanQuery = cleanText(query);
+        if (cleanQuery.length < 2) return null;
+
+        const nq = normalizeVietnamese(cleanQuery);
+        const aq = normalizeAggressive(cleanQuery);
+
+        let bestMatch = null, bestScore = 0;
+
+        for (const candidate of candidates) {
+            const candText = cleanText(candidate.question);
+            const nc = normalizeVietnamese(candText);
+            const ac = normalizeAggressive(candText);
+
+            // 1. Substring
+            if (nq.length >= 4 && nc.includes(nq)) {
+                const score = 0.95 + (0.05 * (nq.length / nc.length));
+                if (score > bestScore) { bestScore = score; bestMatch = candidate; }
+                continue;
+            }
+            // 2. Aggressive substring
+            if (aq.length >= 4 && ac.includes(aq)) {
+                const score = 0.9 + (0.05 * (aq.length / ac.length));
+                if (score > bestScore) { bestScore = score; bestMatch = candidate; }
+                continue;
+            }
+            // 3. Levenshtein (only if lengths similar - avoid O(n*m) waste)
+            if (Math.abs(nq.length - nc.length) < Math.max(nq.length, nc.length) * 0.5) {
+                const sim = calculateSimilarity(nq, nc);
+                if (sim >= 0.55 && sim > bestScore) { bestScore = sim; bestMatch = candidate; continue; }
+            }
+            // 4. Token similarity
+            const tokSim = tokenSimilarity(aq, ac);
+            if (tokSim >= 0.6 && tokSim > bestScore) { bestScore = tokSim; bestMatch = candidate; }
+        }
+        return bestMatch;
+    }
+
+    // ============================================
+    // DOM DETECTION (cached)
+    // ============================================
+
+    let cachedQuestionEl = null;
+    let cachedAnswerEls = null;
+    let lastCacheTime = 0;
+    const DOM_CACHE_TTL = 3000;
+
+    function getQuestionText() {
+        const now = Date.now();
+        if (cachedQuestionEl && cachedQuestionEl.isConnected && now - lastCacheTime < DOM_CACHE_TTL) {
+            const t = cachedQuestionEl.textContent.trim();
+            if (t.length > 20 && t.length < 2000) return t;
+        }
+        const patterns = ['.card .card-title', '.question-text', '[class*="question"]', 'h3', 'h4', '.card-body p'];
+        for (const pattern of patterns) {
+            for (const el of document.querySelectorAll(pattern)) {
+                const text = el.textContent.trim();
+                if (text.length > 20 && text.length < 2000) {
+                    cachedQuestionEl = el;
+                    lastCacheTime = now;
+                    return text;
+                }
+            }
+        }
+        cachedQuestionEl = null;
+        return null;
+    }
+
+    function getAnswerElements() {
+        const now = Date.now();
+        if (cachedAnswerEls && cachedAnswerEls.length > 0 && cachedAnswerEls[0].isConnected && now - lastCacheTime < DOM_CACHE_TTL) {
+            return cachedAnswerEls;
+        }
+        const patterns = ['label[for^="answer"]', '.answer-option', '[class*="option"]', 'label'];
+        for (const pattern of patterns) {
+            const elements = Array.from(document.querySelectorAll(pattern));
+            if (elements.length >= 2 && elements.length <= 6) {
+                cachedAnswerEls = elements;
+                lastCacheTime = now;
+                return elements;
+            }
+        }
+        cachedAnswerEls = [];
+        return [];
+    }
+
+    function getAnswerTexts() { return getAnswerElements().map(el => el.textContent.trim()); }
+
+    // ============================================
+    // DOCX PARSER
+    // ============================================
+
+    function loadJSZip() {
+        return new Promise((resolve, reject) => {
+            if (window.JSZip) return resolve();
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Failed to load jszip'));
+            document.head.appendChild(script);
+        });
+    }
+
+    async function downloadAndParseTeacherDoc() {
+        const isExamPage = window.location.pathname.match(/\/chu-de\//);
+        if (!isExamPage) { teacherDocAnswers = []; populateQAList(); return; }
+        if (isDownloadingDoc || teacherDocAnswers !== null) return;
+        isDownloadingDoc = true;
+        try {
+            await loadJSZip();
+            const pathMatch = window.location.pathname.match(/(\d+)$/);
+            if (!pathMatch) { teacherDocAnswers = []; return; }
+            const id_cate = pathMatch[0];
+            const apiUrl = `https://olm.vn/download-word-for-user?id_cate=${id_cate}&showAns=1&questionNotApproved=0`;
+            const response = await fetch(apiUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            if (!data || !data.file) throw new Error('No file URL');
+            const fileResponse = await fetch(data.file);
+            if (!fileResponse.ok) throw new Error(`Failed: ${fileResponse.status}`);
+            const arrayBuffer = await fileResponse.arrayBuffer();
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            const documentXml = await zip.file('word/document.xml').async('string');
+            teacherDocAnswers = parseDocxXML(documentXml);
+            populateQAList();
+        } catch (error) {
+            console.error('[OLM] Doc error:', error);
+            teacherDocAnswers = [];
+        } finally { isDownloadingDoc = false; }
+    }
+
+    function parseDocxXML(xmlContent) {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
+        const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+        const V = 'urn:schemas-microsoft-com:vml';
+        const RN = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+        const allRuns = xmlDoc.getElementsByTagNameNS(W, 'r');
+        const textChunks = [];
+        let position = 0;
+        for (let i = 0; i < allRuns.length; i++) {
+            const run = allRuns[i];
+            let isUnderlined = false;
+            const rPr = run.getElementsByTagNameNS(W, 'rPr')[0];
+            if (rPr && rPr.getElementsByTagNameNS(W, 'u').length > 0) isUnderlined = true;
+            for (const child of run.childNodes) {
+                const name = child.nodeName;
+                if (name === 'w:t') { textChunks.push({ text: child.textContent, isUnderlined, start: position }); position += child.textContent.length; }
+                else if (name === 'w:object') {
+                    const imgDatas = child.getElementsByTagNameNS(V, 'imagedata');
+                    if (imgDatas.length > 0) {
+                        const rId = imgDatas[0].getAttributeNS(RN, 'id') || imgDatas[0].getAttribute('r:id') || '';
+                        if (rId) { const token = `[IMG:${rId}]`; textChunks.push({ text: token, isUnderlined, start: position }); position += token.length; }
+                    }
+                }
+            }
+        }
+        const fullText = textChunks.map(c => c.text).join('');
+        const questionRegex = /(Question\s+\d+\.|Câu\s+\d+\.)/gi;
+        const questionMarkers = [];
+        let match;
+        while ((match = questionRegex.exec(fullText)) !== null) questionMarkers.push({ marker: match[0], index: match.index });
+
+        const qaPairs = [];
+        for (let qIdx = 0; qIdx < questionMarkers.length; qIdx++) {
+            const startIdx = questionMarkers[qIdx].index + questionMarkers[qIdx].marker.length;
+            const endIdx = qIdx + 1 < questionMarkers.length ? questionMarkers[qIdx + 1].index : fullText.length;
+            const block = fullText.substring(startIdx, endIdx).trim();
+            let answerLetter = null;
+            for (const chunk of textChunks) {
+                if (chunk.start >= startIdx && chunk.start < endIdx && chunk.isUnderlined) {
+                    const letterMatch = chunk.text.trim().match(/^([A-D])\.?\s*$/);
+                    if (letterMatch) { answerLetter = letterMatch[1]; break; }
+                }
+            }
+            const textAnswerMatch = block.match(/^(.+?)\s*\[([^\]]+)\]\s*$/s);
+            if (textAnswerMatch) { qaPairs.push({ question: textAnswerMatch[1].replace(/\s+/g, ' ').trim(), answerLetter: null, answerText: textAnswerMatch[2].trim(), isTextAnswer: true }); continue; }
+            const isTrueFalse = /[a-d]\).*?\(\s*[TF]\s*\)/i.test(block);
+            if (isTrueFalse) {
+                const mainQuestionMatch = block.match(/^(.+?)(?=\s*a\))/s);
+                const mainQuestion = mainQuestionMatch ? mainQuestionMatch[1].replace(/\s+/g, ' ').trim() : '';
+                const subQuestions = [];
+                const subMatches = block.matchAll(/([a-d])\)\s*(.+?)\s*\(\s*([TF])\s*\)/gi);
+                for (const m of subMatches) subQuestions.push({ letter: m[1].toLowerCase(), questionText: m[2].trim(), answer: m[3].toUpperCase() === 'T' ? 'Đ' : 'S' });
+                if (subQuestions.length > 0) qaPairs.push({ question: mainQuestion, answerLetter: null, answerText: subQuestions.map(sq => `${sq.letter}) ${sq.answer}`).join('\n'), isTrueFalse: true, subQuestions });
+                continue;
+            }
+            if (!answerLetter) continue;
+            let questionText = '';
+            const firstOptionMatch = block.match(/(?:^|\n)\s*A\.\s/);
+            if (firstOptionMatch) questionText = block.substring(0, firstOptionMatch.index).replace(/\s+/g, ' ').trim();
+            else { const qm = block.match(/^(.+?)(?=\s*A\.|$)/s); questionText = qm ? qm[1].replace(/\s+/g, ' ').trim() : block.substring(0, 100); }
+            const options = {};
+            const optionRegex = /([A-D])\.\s*(.+?)(?=[A-D]\.|$)/gs;
+            let optMatch;
+            while ((optMatch = optionRegex.exec(block)) !== null) {
+                const letter = optMatch[1];
+                let text = optMatch[2].trim().replace(/\.\s*$/, '').replace(/\s+[A-D]\.?\s*$/, '').trim();
+                if (text && text.length > 1) options[letter] = text;
+            }
+            qaPairs.push({ question: questionText, answerLetter, answerText: options[answerLetter] || answerLetter, allOptions: options, isTrueFalse: false, isTextAnswer: false });
+        }
+        return qaPairs;
+    }
+
+    function findAnswerByQuestionText(questionText) {
+        if (!teacherDocAnswers || teacherDocAnswers.length === 0) return null;
+        return findBestMatch(questionText, teacherDocAnswers);
+    }
+
+    // ============================================
+    // CACHE + STATS (debounced write)
+    // ============================================
+
+    function getCacheKey(q) { return 'q_' + hashString(normalizeVietnamese(q).substring(0, 100)); }
+    function getCachedAnswer(q) { return answerCache[getCacheKey(q)] || null; }
+
+    function scheduleCacheWrite() {
+        cacheDirty = true;
+        if (cacheWriteTimer) return;
+        cacheWriteTimer = setTimeout(() => {
+            if (cacheDirty) {
+                // Trim if too large
+                const keys = Object.keys(answerCache);
+                if (keys.length > 500) {
+                    keys.sort((a, b) => answerCache[a].time - answerCache[b].time);
+                    for (let i = 0; i < 100; i++) delete answerCache[keys[i]];
+                }
+                GM_setValue('answerCache', answerCache);
+                cacheDirty = false;
+            }
+            cacheWriteTimer = null;
+        }, CONFIG.cacheWriteDebounceMs);
+    }
+
+    function setCachedAnswer(q, answer, source) {
+        answerCache[getCacheKey(q)] = { answer, source, time: Date.now() };
+        scheduleCacheWrite();
+    }
+
+    function updateStats(field) { stats[field] = (stats[field] || 0) + 1; GM_setValue('stats', stats); }
+
+    // ============================================
+    // DISPLAY
+    // ============================================
+
+    function displayAIAnswer(answer, confidence, source) {
+        const box = document.getElementById('olm-ai-answer');
+        if (!box) return;
+        let displayText = String(answer || '');
+        if (/^[A-D]$/i.test(displayText.trim()) && currentQuestionData && currentQuestionData.answers) {
+            const idx = displayText.trim().toUpperCase().charCodeAt(0) - 65;
+            if (currentQuestionData.answers[idx]) displayText = currentQuestionData.answers[idx];
+        }
+        const sourceLabel = source === 'DOC' ? 'DOC' : source === 'CACHE' ? 'CACHE' : source === 'ERR' ? 'LỖI' : 'AI';
+        const color = source === 'DOC' ? '#30d158' : source === 'ERR' ? '#ff453a' : '#0a84ff';
+        const bg = source === 'DOC' ? 'rgba(48,209,88,0.18)' : source === 'ERR' ? 'rgba(255,69,58,0.18)' : 'rgba(10,132,255,0.18)';
+        box.innerHTML = `<div style="display:flex;align-items:flex-start;gap:10px;">
+            <span style="font-size:10px;font-weight:700;letter-spacing:0.5px;padding:2px 7px;border-radius:5px;background:${bg};color:${color};flex-shrink:0;margin-top:2px;">${sourceLabel}</span>
+            <span style="flex:1;color:rgba(255,255,255,0.92);font-size:13.5px;line-height:1.5;word-break:break-word;">${displayText}</span>
+        </div>`;
+        isAIThinking = false;
+    }
+
+    function highlightAnswer(letter) {
+        const answerElements = getAnswerElements();
+        const index = letter.toUpperCase().charCodeAt(0) - 65;
+        if (!answerElements[index]) return;
+        answerElements.forEach(el => { el.style.background = ''; el.style.border = ''; el.style.boxShadow = ''; el.style.transform = ''; });
+        const target = answerElements[index];
+        target.style.background = 'rgba(10, 132, 255, 0.15)';
+        target.style.border = '2px solid #0a84ff';
+        target.style.borderRadius = '10px';
+        target.style.transition = 'all 0.35s cubic-bezier(0.34, 1.3, 0.64, 1)';
+        target.style.boxShadow = '0 0 0 4px rgba(10, 132, 255, 0.12)';
+        target.style.transform = 'scale(1.02)';
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => { target.style.transform = ''; }, 500);
+    }
+
+    function selectAnswer(letter) {
+        const answerElements = getAnswerElements();
+        const index = letter.toUpperCase().charCodeAt(0) - 65;
+        if (!answerElements[index]) return;
+        const el = answerElements[index];
+        const input = el.querySelector('input') || (el.previousElementSibling && el.previousElementSibling.tagName === 'INPUT' ? el.previousElementSibling : document.querySelector('input[id="' + el.getAttribute('for') + '"]'));
+        if (input) { input.click(); input.checked = true; input.dispatchEvent(new Event('change', { bubbles: true })); }
+        el.click();
+        Sound.click();
+        updateStats('answered');
+    }
+
+    // ============================================
+    // AI
+    // ============================================
+
+    async function askAIForAnswer(customQuestion, useIsland) {
+        if (isAIThinking) return;
+        const questionText = customQuestion || (currentQuestionData && currentQuestionData.question);
+        const answerTexts = customQuestion ? [] : ((currentQuestionData && currentQuestionData.answers) || []);
+        if (!questionText) return;
+
+        const cached = getCachedAnswer(questionText);
+        if (cached) {
+            displayAIAnswer(cached.answer, 95, 'CACHE');
+            updateStats('cacheHits');
+            if (cached.answer.match(/^[A-D]/)) highlightAnswer(cached.answer[0]);
+            if (useIsland) updateIslandResult({ text: cached.answer, source: 'CACHE' });
+            return;
+        }
+
+        isAIThinking = true;
+        const aiBox = document.getElementById('olm-ai-answer');
+        if (aiBox) aiBox.innerHTML = `<div style="color:rgba(255,255,255,0.4);font-size:12.5px;">Đang hỏi AI...</div>`;
+        if (useIsland) updateIslandLoading();
+
+        try {
+            let prompt = answerTexts.length > 0
+                ? `You are taking a Vietnamese quiz. Answer ONLY with the letter (A, B, C, or D). No explanations.\n\nQuestion: ${questionText}\n\nOptions:\n${answerTexts.map((a, i) => `${String.fromCharCode(65 + i)}. ${a}`).join('\n')}\n\nAnswer (letter only):`
+                : `Answer this Vietnamese question. Give ONLY a concise answer, no explanations:\n\n${questionText}`;
+            if (CONFIG.knowledge) prompt = `KNOWLEDGE BASE:\n${CONFIG.knowledge}\n\n${prompt}`;
+
+            const response = await gmFetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CONFIG.groqApiKey}` },
+                body: JSON.stringify({
+                    model: CONFIG.groqTextModel,
+                    messages: [{ role: 'system', content: 'You are a helpful quiz assistant. Answer concisely.' }, { role: 'user', content: prompt }],
+                    max_tokens: 200, temperature: 0.3
+                })
+            });
+
+            if (!response.ok) {
+                const t = await response.text();
+                if (response.status === 429 || t.includes('rate_limit')) throw new Error('Rate limit - lấy key free tại console.groq.com');
+                throw new Error(`API ${response.status}`);
+            }
+
+            const data = await response.json();
+            const answer = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content && data.choices[0].message.content.trim();
+            if (!answer) throw new Error('Không có đáp án');
+
+            const letterMatch = answer.match(/^([A-D])/i);
+            if (letterMatch) {
+                const letter = letterMatch[1].toUpperCase();
+                const idx = letter.charCodeAt(0) - 65;
+                const fullAns = answerTexts[idx] || letter;
+                displayAIAnswer(fullAns, 85, 'AI');
+                highlightAnswer(letter);
+                setCachedAnswer(questionText, fullAns, 'AI');
+                updateStats('aiHits');
+                Sound.success();
+                if (useIsland) updateIslandResult({ text: fullAns, source: 'AI' });
+                if (CONFIG.autoAnswer) setTimeout(() => selectAnswer(letter), 300);
+            } else {
+                displayAIAnswer(answer, null, 'AI');
+                setCachedAnswer(questionText, answer, 'AI');
+                updateStats('aiHits');
+                Sound.success();
+                if (useIsland) updateIslandResult({ text: answer, source: 'AI' });
+            }
+        } catch (error) {
+            displayAIAnswer(error.message, null, 'ERR');
+            Sound.error();
+            if (useIsland) updateIslandError(error.message);
+        } finally { isAIThinking = false; }
+    }
+
+    // ============================================
+    // QUESTION CHANGE (optimized)
+    // ============================================
+
+    function detectQuestionChange() {
+        // Skip if music expanded to avoid island mode conflict
+        const questionText = getQuestionText();
+        if (!questionText) return false;
+        const answerTexts = getAnswerTexts();
+
+        // Quick string-equality check before hashing
+        if (questionText === lastQuestionText && answerTexts.join('|') === lastAnswerTexts.join('|')) return false;
+        lastQuestionText = questionText;
+        lastAnswerTexts = answerTexts;
+
+        const currentHash = hashString(questionText + answerTexts.join(''));
+        if (currentHash === lastQuestionHash) return false;
+        lastQuestionHash = currentHash;
+
+        currentQuestionData = { question: questionText, answers: answerTexts };
+        updateStats('total');
+
+        const teacherAnswer = findAnswerByQuestionText(questionText);
+        if (teacherAnswer) {
+            const ans = teacherAnswer.answerText || teacherAnswer.answerLetter;
+            displayAIAnswer(ans, 99, 'DOC');
+            if (teacherAnswer.answerLetter) highlightAnswer(teacherAnswer.answerLetter);
+            setCachedAnswer(questionText, ans, 'DOC');
+            updateStats('docHits');
+            Sound.success();
+            if (CONFIG.autoAnswer && teacherAnswer.answerLetter) setTimeout(() => selectAnswer(teacherAnswer.answerLetter), 300);
+        } else {
+            setTimeout(() => askAIForAnswer(), 500);
+        }
+        return true;
+    }
+
+    function scheduleDetect() {
+        if (detectScheduled) return;
+        const now = Date.now();
+        const elapsed = now - lastDetectAt;
+        const delay = Math.max(50, CONFIG.detectIntervalMs - elapsed);
+        detectScheduled = true;
+        setTimeout(() => {
+            detectScheduled = false;
+            lastDetectAt = Date.now();
+            try { detectQuestionChange(); } catch (e) { log('detect err: ' + e.message, '#ff453a'); }
+        }, delay);
+    }
+
+    function startQuestionMonitoring() {
+        // Interval fallback (slower)
+        setInterval(() => { scheduleDetect(); }, CONFIG.detectIntervalMs);
+
+        // MutationObserver only on main question container, without characterData
+        const target = document.querySelector('#main-content, .container, .card, main') || document.body;
+        const observer = new MutationObserver(() => { scheduleDetect(); });
+        observer.observe(target, { childList: true, subtree: true });
+    }
+
+    // ============================================
+    // DYNAMIC ISLAND
+    // ============================================
+
+    const ISLAND_STYLE_ID = 'olm-island-styles-v62';
+    function injectIslandStyles() {
+        if (document.getElementById(ISLAND_STYLE_ID)) return;
+        const style = document.createElement('style');
+        style.id = ISLAND_STYLE_ID;
+        style.textContent = `
+            @keyframes olm-island-in { 0% { opacity: 0; transform: translateX(-50%) scale(0.5) translateY(-10px); } 60% { opacity: 1; transform: translateX(-50%) scale(1.04); } 100% { opacity: 1; transform: translateX(-50%) scale(1); } }
+            @keyframes olm-island-out { 0% { opacity: 1; transform: translateX(-50%) scale(1); } 100% { opacity: 0; transform: translateX(-50%) scale(0.5) translateY(-10px); } }
+            @keyframes olm-island-spin { to { transform: rotate(360deg); } }
+            @keyframes olm-island-check { 0% { stroke-dashoffset: 24; } 100% { stroke-dashoffset: 0; } }
+            @keyframes olm-island-dot { 0%,80%,100% { opacity: 0.3; transform: scale(0.7); } 40% { opacity: 1; transform: scale(1); } }
+            @keyframes olm-disc-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            @keyframes olm-banner-flow { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+            @keyframes olm-bar-eq { 0%,100% { height: 30%; } 50% { height: 100%; } }
+            @keyframes olm-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+            #olm-dynamic-island { position: fixed; top: 10px; left: 50%; transform: translateX(-50%) scale(0.5); z-index: 2147483647; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; pointer-events: none; opacity: 0; will-change: transform, opacity; transform-origin: top center; }
+            #olm-dynamic-island.island-show { opacity: 1; pointer-events: auto; animation: olm-island-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+            #olm-dynamic-island.island-hide { animation: olm-island-out 0.28s cubic-bezier(0.4, 0, 1, 1) forwards; }
+
+            .island-pill { display: flex; align-items: center; justify-content: center; height: 28px; min-width: 80px; max-width: 380px; padding: 0 12px; background: #000; border-radius: 16px; border: 0.5px solid rgba(255,255,255,0.08); box-shadow: 0 6px 24px rgba(0,0,0,0.75); overflow: hidden; transition: min-width 0.35s cubic-bezier(0.34, 1.3, 0.64, 1), max-width 0.4s cubic-bezier(0.34, 1.3, 0.64, 1), padding 0.3s ease, height 0.4s cubic-bezier(0.34, 1.3, 0.64, 1); cursor: pointer; }
+            .island-pill.has-content { min-width: 180px; }
+            .island-pill.is-music { min-width: 220px; max-width: 380px; padding: 0 10px; }
+            .island-pill.is-music.expanded { height: 108px; min-width: 340px; max-width: 420px; padding: 8px 12px; align-items: stretch; justify-content: flex-start; }
+
+            .island-icon { width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+            .island-icon .spinner { width: 11px; height: 11px; border: 1.4px solid rgba(255,255,255,0.2); border-top-color: #fff; border-radius: 50%; animation: olm-island-spin 0.7s linear infinite; }
+            .island-icon.success { background: #30d158; }
+            .island-icon.success svg { width: 10px; height: 10px; }
+            .island-icon.success path { stroke: #000; stroke-dasharray: 24; animation: olm-island-check 0.4s ease-out forwards; }
+            .island-icon.error { background: #ff453a; color: #fff; font-size: 10px; font-weight: 700; }
+
+            .island-text { display: flex; flex-direction: column; justify-content: center; gap: 1px; min-width: 0; max-width: 0; opacity: 0; overflow: hidden; margin-left: 0; transition: max-width 0.4s cubic-bezier(0.34, 1.3, 0.64, 1), opacity 0.25s ease 0.08s, margin-left 0.3s cubic-bezier(0.34, 1.3, 0.64, 1); }
+            .island-pill.has-content .island-text { max-width: 300px; opacity: 1; margin-left: 8px; }
+            .island-answer { font-size: 11.5px; font-weight: 600; color: #fff; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .island-answer.error { color: #ffb4a8; font-weight: 500; }
+            .island-meta { font-size: 8px; font-weight: 700; color: rgba(255,255,255,0.4); letter-spacing: 0.3px; text-transform: uppercase; line-height: 1; }
+
+            .island-dots { display: flex; gap: 2px; align-items: center; opacity: 0; max-width: 0; overflow: hidden; margin-left: 0; transition: all 0.3s ease; }
+            .island-pill.is-loading .island-dots { opacity: 1; max-width: 30px; margin-left: 6px; }
+            .island-dots span { width: 3px; height: 3px; border-radius: 50%; background: #fff; animation: olm-island-dot 1.1s ease-in-out infinite; }
+            .island-dots span:nth-child(2) { animation-delay: 0.15s; }
+            .island-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+            .island-eq { display: flex; align-items: flex-end; gap: 1.5px; height: 12px; width: 14px; margin-left: 6px; }
+            .island-eq span { width: 2px; background: #ff5e3a; border-radius: 1px; animation: olm-bar-eq 0.9s ease-in-out infinite; height: 30%; }
+            .island-eq span:nth-child(1) { animation-delay: 0s; }
+            .island-eq span:nth-child(2) { animation-delay: 0.15s; }
+            .island-eq span:nth-child(3) { animation-delay: 0.3s; }
+            .island-eq span:nth-child(4) { animation-delay: 0.45s; }
+            .island-eq.paused span { animation-play-state: paused; }
+
+            .island-music-expanded { display: none; width: 100%; gap: 10px; align-items: center; }
+            .island-pill.is-music.expanded .island-music-expanded { display: flex; animation: olm-fade-up 0.35s ease; }
+            .island-pill.is-music.expanded .island-music-mini { display: none; }
+
+            .music-cover { position: relative; width: 76px; height: 76px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #1a1a1a; }
+            .music-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+            .music-cover .disc { position: absolute; inset: 0; border-radius: 50%; background: repeating-radial-gradient(circle at 50% 50%, #111 0px, #111 3px, #1c1c1c 3px, #1c1c1c 6px); border: 2px solid #000; animation: olm-disc-rotate 4s linear infinite; }
+            .music-cover .disc::after { content: ''; position: absolute; inset: 42%; border-radius: 50%; background: linear-gradient(135deg, #ff5e3a, #fa2d48); }
+            .music-cover .banner { position: absolute; left: 0; right: 0; bottom: 0; height: 22px; background: linear-gradient(90deg, rgba(250,45,72,0.85), rgba(255,94,58,0.85), rgba(250,45,72,0.85)); background-size: 200% 100%; animation: olm-banner-flow 3s linear infinite; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 800; color: #fff; letter-spacing: 0.5px; text-transform: uppercase; }
+            .music-cover.paused .disc { animation-play-state: paused; }
+            .music-cover.paused .banner { animation-play-state: paused; }
+
+            .music-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+            .music-title { font-size: 12.5px; font-weight: 700; color: #fff; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .music-artist { font-size: 10.5px; font-weight: 500; color: rgba(255,255,255,0.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .music-progress-wrap { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+            .music-time { font-size: 8.5px; font-weight: 600; color: rgba(255,255,255,0.5); font-variant-numeric: tabular-nums; min-width: 26px; }
+            .music-bar-bg { flex: 1; height: 3px; background: rgba(255,255,255,0.15); border-radius: 2px; overflow: hidden; cursor: pointer; }
+            .music-bar-fill { height: 100%; background: linear-gradient(90deg, #fa2d48, #ff5e3a); border-radius: 2px; width: 0%; transition: width 0.25s linear; }
+            .music-controls { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 2px; }
+            .music-btn { width: 26px; height: 26px; border-radius: 50%; border: none; background: rgba(255,255,255,0.1); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s ease, transform 0.1s ease; padding: 0; }
+            .music-btn:hover { background: rgba(255,255,255,0.2); }
+            .music-btn:active { transform: scale(0.9); }
+            .music-btn .olm-icon { width: 12px; height: 12px; }
+            .music-btn.play { background: linear-gradient(135deg, #fa2d48, #ff5e3a); width: 30px; height: 30px; }
+            .music-btn.play .olm-icon { width: 13px; height: 13px; }
+
+            .music-mini { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+            .music-mini-cover { width: 18px; height: 18px; border-radius: 4px; background: #1a1a1a; overflow: hidden; flex-shrink: 0; position: relative; }
+            .music-mini-cover img { width: 100%; height: 100%; object-fit: cover; }
+            .music-mini-cover .disc-mini { position: absolute; inset: 0; border-radius: 50%; background: repeating-radial-gradient(circle at 50% 50%, #111 0px, #111 1.5px, #1c1c1c 1.5px, #1c1c1c 3px); animation: olm-disc-rotate 3s linear infinite; }
+            .music-mini-cover.paused .disc-mini { animation-play-state: paused; }
+            .music-mini-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+            .music-mini-title { font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+            .music-mini-artist { font-size: 8.5px; font-weight: 500; color: rgba(255,255,255,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function createDynamicIsland() {
+        if (dynamicIsland) return;
+        injectIslandStyles();
+        dynamicIsland = document.createElement('div');
+        dynamicIsland.id = 'olm-dynamic-island';
+        dynamicIsland.innerHTML = `
+            <div class="island-pill" id="island-pill">
+                <div class="island-icon" id="island-icon"><div class="spinner"></div></div>
+                <div class="island-text" id="island-text">
+                    <div class="island-answer" id="island-answer"></div>
+                    <div class="island-meta" id="island-meta"></div>
+                </div>
+                <div class="island-dots" id="island-dots"><span></span><span></span><span></span></div>
+                <div class="island-eq" id="island-eq" style="display:none;"><span></span><span></span><span></span><span></span></div>
+            </div>
+        `;
+        document.body.appendChild(dynamicIsland);
+
+        dynamicIsland.addEventListener('click', (e) => {
+            if (e.target.closest('.music-btn') || e.target.closest('.music-bar-bg')) return;
+            if (islandMode === 'music') {
+                Music.expanded = !Music.expanded;
+                renderIslandMusic(true);
+            }
+        });
+    }
+
+    function showDynamicIsland() {
+        if (!dynamicIsland) createDynamicIsland();
+        clearTimeout(islandHideTimer);
+        dynamicIsland.classList.remove('island-hide');
+        dynamicIsland.classList.add('island-show');
+    }
+    function hideDynamicIsland() {
+        if (!dynamicIsland) return;
+        if (islandMode === 'music' && Music.current) return;
+        dynamicIsland.classList.remove('island-show');
+        dynamicIsland.classList.add('island-hide');
+        islandHideTimer = setTimeout(() => { if (dynamicIsland) dynamicIsland.classList.remove('island-hide'); }, 300);
+    }
+
+    function setPillMode(mode) {
+        const pill = document.getElementById('island-pill');
+        if (!pill) return;
+        pill.classList.remove('is-loading', 'has-content', 'is-music', 'expanded');
+        if (mode === 'loading') pill.classList.add('is-loading');
+        else if (mode === 'result') pill.classList.add('has-content');
+        else if (mode === 'music') pill.classList.add('is-music', 'has-content');
+    }
+
+    function updateIslandLoading() {
+        if (!dynamicIsland) return;
+        islandMode = 'searching';
+        setPillMode('loading');
+        const iconEl = document.getElementById('island-icon');
+        const answerEl = document.getElementById('island-answer');
+        const metaEl = document.getElementById('island-meta');
+        const eq = document.getElementById('island-eq');
+        if (iconEl) { iconEl.className = 'island-icon'; iconEl.innerHTML = '<div class="spinner"></div>'; }
+        if (answerEl) answerEl.textContent = '';
+        if (metaEl) metaEl.textContent = '';
+        if (eq) eq.style.display = 'none';
+        showDynamicIsland();
+    }
+
+    function updateIslandResult(data) {
+        if (!dynamicIsland) return;
+        if (islandMode === 'music' && Music.current && Music.isPlaying) return;
+        islandMode = 'answered';
+        setPillMode('result');
+        const iconEl = document.getElementById('island-icon');
+        const answerEl = document.getElementById('island-answer');
+        const metaEl = document.getElementById('island-meta');
+        const eq = document.getElementById('island-eq');
+        if (iconEl) {
+            iconEl.className = 'island-icon success';
+            iconEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>`;
+        }
+        if (answerEl) { answerEl.className = 'island-answer'; answerEl.textContent = data.text || '?'; }
+        if (metaEl) metaEl.textContent = data.source === 'DOC' ? 'TỪ ĐỀ' : data.source === 'CACHE' ? 'CACHE' : 'AI';
+        if (eq) eq.style.display = 'none';
+        // Restore inner HTML if it was music expanded
+        const pill = document.getElementById('island-pill');
+        if (pill && !pill.querySelector('.island-text')) {
+            pill.innerHTML = `
+                <div class="island-icon" id="island-icon"></div>
+                <div class="island-text" id="island-text">
+                    <div class="island-answer" id="island-answer"></div>
+                    <div class="island-meta" id="island-meta"></div>
+                </div>
+                <div class="island-dots" id="island-dots"><span></span><span></span><span></span></div>
+                <div class="island-eq" id="island-eq" style="display:none;"><span></span><span></span><span></span><span></span></div>
+            `;
+            updateIslandResult(data);
+            return;
+        }
+        showDynamicIsland();
+        clearTimeout(islandHideTimer);
+        islandHideTimer = setTimeout(() => hideDynamicIsland(), 5000);
+    }
+
+    function updateIslandError(msg) {
+        if (!dynamicIsland) return;
+        if (islandMode === 'music') return;
+        islandMode = 'answered';
+        setPillMode('result');
+        const iconEl = document.getElementById('island-icon');
+        const answerEl = document.getElementById('island-answer');
+        const metaEl = document.getElementById('island-meta');
+        const eq = document.getElementById('island-eq');
+        if (iconEl) { iconEl.className = 'island-icon error'; iconEl.textContent = '!'; iconEl.innerHTML = '!'; }
+        if (answerEl) { answerEl.className = 'island-answer error'; answerEl.textContent = msg || 'Có lỗi'; }
+        if (metaEl) metaEl.textContent = 'LỖI';
+        if (eq) eq.style.display = 'none';
+        const pill = document.getElementById('island-pill');
+        if (pill && !pill.querySelector('.island-text')) {
+            pill.innerHTML = `
+                <div class="island-icon" id="island-icon"></div>
+                <div class="island-text" id="island-text">
+                    <div class="island-answer" id="island-answer"></div>
+                    <div class="island-meta" id="island-meta"></div>
+                </div>
+                <div class="island-dots" id="island-dots"><span></span><span></span><span></span></div>
+                <div class="island-eq" id="island-eq" style="display:none;"><span></span><span></span><span></span><span></span></div>
+            `;
+            updateIslandError(msg);
+            return;
+        }
+        showDynamicIsland();
+        clearTimeout(islandHideTimer);
+        islandHideTimer = setTimeout(() => hideDynamicIsland(), 4500);
+    }
+
+    // Render music island - only rebuild when structure changes
+    function renderIslandMusic(force = false) {
+        if (!dynamicIsland) createDynamicIsland();
+        const pill = document.getElementById('island-pill');
+        if (!pill || !Music.current) return;
+
+        const newState = `${Music.expanded ? 'E' : 'M'}|${Music.isPlaying ? 'P' : 'S'}`;
+        const stateChanged = force || newState !== Music.lastRenderedState;
+
+        islandMode = 'music';
+        pill.classList.remove('is-loading', 'has-content');
+        pill.classList.add('is-music', 'has-content');
+        pill.classList.toggle('expanded', Music.expanded);
+        showDynamicIsland();
+        clearTimeout(islandHideTimer);
+
+        if (!stateChanged) {
+            // Just update progress bar & title if expanded
+            if (Music.expanded) {
+                const fill = document.getElementById('music-bar-fill');
+                const cur = document.getElementById('music-time-cur');
+                const pct = Music.duration > 0 ? (Music.currentTime / Music.duration) * 100 : 0;
+                if (fill) fill.style.width = pct + '%';
+                if (cur) cur.textContent = formatTime(Music.currentTime);
+            }
+            return;
+        }
+        Music.lastRenderedState = newState;
+
+        const m = Music.current;
+        const thumb = m.thumbnail || '';
+        const paused = !Music.isPlaying;
+
+        if (Music.expanded) {
+            const pct = Music.duration > 0 ? (Music.currentTime / Music.duration) * 100 : 0;
+            pill.innerHTML = `
+                <div class="island-music-expanded">
+                    <div class="music-cover ${paused ? 'paused' : ''}">
+                        ${thumb ? `<img src="${thumb}" alt="" onerror="this.style.display='none'">` : `<div class="disc"></div>`}
+                        <div class="banner">NOW PLAYING</div>
+                    </div>
+                    <div class="music-info">
+                        <div class="music-title">${escapeHtml(m.title)}</div>
+                        <div class="music-artist">${escapeHtml(m.artist || 'Unknown Artist')}</div>
+                        <div class="music-progress-wrap">
+                            <span class="music-time" id="music-time-cur">${formatTime(Music.currentTime)}</span>
+                            <div class="music-bar-bg" id="music-bar-bg"><div class="music-bar-fill" id="music-bar-fill" style="width:${pct}%"></div></div>
+                            <span class="music-time" id="music-time-dur">${formatTime(Music.duration)}</span>
+                        </div>
+                        <div class="music-controls">
+                            <button class="music-btn" id="music-btn-prev" title="Restart">${ICONS.prev}</button>
+                            <button class="music-btn play" id="music-btn-toggle" title="Play/Pause">${paused ? ICONS.play : ICONS.pause}</button>
+                            <button class="music-btn" id="music-btn-next" title="+10s">${ICONS.next}</button>
+                            <button class="music-btn" id="music-btn-close" title="Stop">${ICONS.close}</button>
+                        </div>
+                    </div>
+                </div>`;
+            const toggleBtn = document.getElementById('music-btn-toggle');
+            if (toggleBtn) toggleBtn.onclick = (e) => { e.stopPropagation(); toggleMusicPlayPause(); };
+            const closeBtn = document.getElementById('music-btn-close');
+            if (closeBtn) closeBtn.onclick = (e) => { e.stopPropagation(); stopMusic(); Music.expanded = false; islandMode = 'idle'; hideDynamicIsland(); };
+            const prevBtn = document.getElementById('music-btn-prev');
+            if (prevBtn) prevBtn.onclick = (e) => { e.stopPropagation(); seekMusic(0); };
+            const nextBtn = document.getElementById('music-btn-next');
+            if (nextBtn) nextBtn.onclick = (e) => { e.stopPropagation(); seekMusic(Math.min(Music.duration - 1, Music.currentTime + 10)); };
+            const barBg = document.getElementById('music-bar-bg');
+            if (barBg) barBg.onclick = (e) => {
+                e.stopPropagation();
+                const rect = barBg.getBoundingClientRect();
+                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                seekMusic(pct * Music.duration);
+            };
+        } else {
+            pill.innerHTML = `
+                <div class="music-mini">
+                    <div class="music-mini-cover ${paused ? 'paused' : ''}">
+                        ${thumb ? `<img src="${thumb}" alt="" onerror="this.style.display='none'">` : `<div class="disc-mini"></div>`}
+                    </div>
+                    <div class="music-mini-text">
+                        <div class="music-mini-title">${escapeHtml(m.title)}</div>
+                        <div class="music-mini-artist">${escapeHtml(m.artist || '')}</div>
+                    </div>
+                    <div class="island-eq ${paused ? 'paused' : ''}"><span></span><span></span><span></span><span></span></div>
+                </div>`;
+        }
+    }
+
+    function updateIslandMusicProgress() {
+        if (islandMode !== 'music' || !Music.expanded) return;
+        // Throttle to 1Hz
+        const now = Date.now();
+        if (now - Music.lastProgressAt < 900) return;
+        Music.lastProgressAt = now;
+        const pct = Music.duration > 0 ? (Music.currentTime / Music.duration) * 100 : 0;
+        const fill = document.getElementById('music-bar-fill');
+        const cur = document.getElementById('music-time-cur');
+        const dur = document.getElementById('music-time-dur');
+        if (fill) fill.style.width = pct + '%';
+        if (cur) cur.textContent = formatTime(Music.currentTime);
+        if (dur) dur.textContent = formatTime(Music.duration);
+    }
+
+    function seekMusic(sec) {
+        if (Music.ytPlayer && Music.ytPlayer.seekTo) Music.ytPlayer.seekTo(sec, true);
+        else if (Music.audioEl) Music.audioEl.currentTime = sec;
+        Music.currentTime = sec;
+        Music.lastProgressAt = 0;
+        updateIslandMusicProgress();
+    }
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    }
+
+    // ============================================
+    // MUSIC PLAYER
+    // ============================================
+
+    function loadYouTubeAPI() {
+        return new Promise((resolve) => {
+            if (Music.apiLoaded && window.YT && window.YT.Player) return resolve();
+            if (window.YT && window.YT.Player) { Music.apiLoaded = true; return resolve(); }
+            if (!window.onYouTubeIframeAPIReady) {
+                window.onYouTubeIframeAPIReady = () => {
+                    Music.apiLoaded = true;
+                    resolve();
+                };
+            }
+            if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+                const tag = document.createElement('script');
+                tag.src = 'https://www.youtube.com/iframe_api';
+                document.head.appendChild(tag);
+            } else {
+                const check = setInterval(() => {
+                    if (window.YT && window.YT.Player) { clearInterval(check); Music.apiLoaded = true; resolve(); }
+                }, 200);
+            }
+        });
+    }
+
+    function parseMusicURL(url) {
+        if (!url) return null;
+        url = url.trim();
+        let m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+        if (m) return { source: 'youtube', id: m[1], url };
+        if (/soundcloud\.com\/[\w-]+\/[\w-]+/.test(url)) return { source: 'soundcloud', id: url, url };
+        m = url.match(/nhaccuatui\.com\/.*?\/([\w-]+)/);
+        if (m) return { source: 'nhaccuatui', id: m[1], url };
+        m = url.match(/zingmp3\.vn\/.*?\/([\w-]+)/);
+        if (m) return { source: 'zingmp3', id: m[1], url };
+        if (/\.(mp3|m4a|wav|ogg|flac|aac)(\?|$)/i.test(url)) return { source: 'direct', id: url, url };
+        if (/music\.apple\.com/.test(url)) return { source: 'apple', id: url, url };
+        if (/open\.spotify\.com/.test(url)) return { source: 'spotify', id: url, url };
+        return null;
+    }
+
+    async function fetchYouTubeInfo(videoId) {
+        try {
+            const res = await gmFetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+            if (res.ok) {
+                const data = await res.json();
+                return {
+                    title: data.title || 'Unknown',
+                    artist: data.author_name || 'YouTube',
+                    thumbnail: data.thumbnail_url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                    duration: 0
+                };
+            }
+        } catch (e) { }
+        return { title: 'YouTube Audio', artist: 'YouTube', thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, duration: 0 };
+    }
+
+    async function fetchSoundCloudInfo(url) {
+        try {
+            const res = await gmFetch(`https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(url)}`);
+            if (res.ok) {
+                const data = await res.json();
+                return {
+                    title: data.title || 'SoundCloud Audio',
+                    artist: data.author_name || 'SoundCloud',
+                    thumbnail: data.thumbnail_url || '',
+                    duration: 0
+                };
+            }
+        } catch (e) { }
+        return { title: 'SoundCloud Audio', artist: 'SoundCloud', thumbnail: '', duration: 0 };
+    }
+
+    function titleFromSlug(url) {
+        try {
+            const parts = url.split('/').filter(Boolean);
+            const last = parts[parts.length - 1].replace(/\.(html?|php|mp3|m4a|wav|ogg)$/i, '').replace(/-/g, ' ');
+            return last.replace(/\b\w/g, c => c.toUpperCase());
+        } catch (e) { return 'Unknown Track'; }
+    }
+
+    async function playMusicURL(url) {
+        const info = parseMusicURL(url);
+        if (!info) {
+            updateIslandError('Link không hợp lệ');
+            alert('Không nhận diện được link nhạc.\n\nHỗ trợ: YouTube, SoundCloud, Nhaccuatui, Zing MP3, file .mp3 trực tiếp, Apple Music, Spotify.');
+            return;
+        }
+
+        stopMusic();
+        showDynamicIsland();
+        updateIslandLoading();
+
+        try {
+            let meta = { title: 'Loading...', artist: '', thumbnail: '', duration: 0 };
+
+            if (info.source === 'youtube') {
+                meta = await fetchYouTubeInfo(info.id);
+                await loadYouTubeAPI();
+                await new Promise((resolve) => {
+                    let ytHost = document.getElementById('olm-yt-host');
+                    if (!ytHost) {
+                        ytHost = document.createElement('div');
+                        ytHost.id = 'olm-yt-host';
+                        ytHost.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+                        document.body.appendChild(ytHost);
+                    }
+                    ytHost.innerHTML = '<div id="olm-yt-player"></div>';
+                    Music.ytPlayer = new window.YT.Player('olm-yt-player', {
+                        height: '1', width: '1', videoId: info.id,
+                        playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, playsinline: 1, rel: 0 },
+                        events: {
+                            onReady: (e) => {
+                                try { e.target.setVolume(Music.volume * 100); e.target.playVideo(); } catch (err) { }
+                                resolve();
+                            },
+                            onStateChange: (e) => {
+                                if (e.data === window.YT.PlayerState.PLAYING) {
+                                    Music.isPlaying = true;
+                                    Music.duration = Music.ytPlayer.getDuration() || 0;
+                                    meta.duration = Music.duration;
+                                    if (islandMode === 'music') renderIslandMusic(true);
+                                } else if (e.data === window.YT.PlayerState.PAUSED) {
+                                    Music.isPlaying = false;
+                                    if (islandMode === 'music') renderIslandMusic(true);
+                                } else if (e.data === window.YT.PlayerState.ENDED) {
+                                    Music.isPlaying = false;
+                                    if (islandMode === 'music') renderIslandMusic(true);
+                                }
+                            }
+                        }
+                    });
+                    setTimeout(resolve, 4000);
+                });
+            } else if (info.source === 'soundcloud') {
+                meta = await fetchSoundCloudInfo(url);
+                let host = document.getElementById('olm-sc-host');
+                if (!host) {
+                    host = document.createElement('div');
+                    host.id = 'olm-sc-host';
+                    host.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+                    document.body.appendChild(host);
+                }
+                host.innerHTML = `<iframe id="olm-sc-iframe" width="1" height="1" scrolling="no" frameborder="no" allow="autoplay" src="https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&auto_play=true&hide_related=true&show_comments=false&show_user=true&show_reposts=false&visual=false"></iframe>`;
+                Music.isPlaying = true;
+            } else if (info.source === 'direct') {
+                if (!Music.audioEl) Music.audioEl = new Audio();
+                Music.audioEl.src = url;
+                Music.audioEl.volume = Music.volume;
+                Music.audioEl.addEventListener('timeupdate', () => {
+                    Music.currentTime = Music.audioEl.currentTime;
+                    Music.duration = Music.audioEl.duration || 0;
+                    if (islandMode === 'music') updateIslandMusicProgress();
+                });
+                Music.audioEl.addEventListener('ended', () => { Music.isPlaying = false; if (islandMode === 'music') renderIslandMusic(true); });
+                await Music.audioEl.play();
+                Music.isPlaying = true;
+                meta = { title: titleFromSlug(url) || 'Audio File', artist: 'Direct Audio', thumbnail: '', duration: Music.audioEl.duration || 0 };
+            } else if (info.source === 'nhaccuatui' || info.source === 'zingmp3') {
+                meta = { title: titleFromSlug(url), artist: info.source === 'zingmp3' ? 'Zing MP3' : 'Nhaccuatui', thumbnail: '', duration: 0 };
+                window.open(url, '_blank');
+                Music.isPlaying = false;
+                alert('Nền tảng này không hỗ trợ phát trực tiếp trong script.\nĐã mở tab mới để bạn nghe.');
+            } else if (info.source === 'apple' || info.source === 'spotify') {
+                window.open(url, '_blank');
+                meta = { title: titleFromSlug(url), artist: info.source === 'apple' ? 'Apple Music' : 'Spotify', thumbnail: '', duration: 0 };
+                Music.isPlaying = false;
+                alert('Đã mở tab mới để bạn nghe trên nền tảng này.');
+            }
+
+            Music.current = { ...info, ...meta };
+            Music.isPlaying = info.source === 'nhaccuatui' || info.source === 'zingmp3' || info.source === 'apple' || info.source === 'spotify' ? false : true;
+
+            startMusicProgressTimer();
+            islandMode = 'music';
+            Music.lastRenderedState = '';
+            renderIslandMusic(true);
+        } catch (err) {
+            log('Play music error: ' + err.message, '#ff453a');
+            updateIslandError('Không phát được nhạc');
+            Music.isPlaying = false;
+        }
+    }
+
+    function toggleMusicPlayPause() {
+        if (!Music.current) return;
+        if (Music.current.source === 'youtube' && Music.ytPlayer && Music.ytPlayer.pauseVideo) {
+            if (Music.isPlaying) { Music.ytPlayer.pauseVideo(); Music.isPlaying = false; }
+            else { Music.ytPlayer.playVideo(); Music.isPlaying = true; }
+        } else if (Music.audioEl) {
+            if (Music.isPlaying) { Music.audioEl.pause(); Music.isPlaying = false; }
+            else { Music.audioEl.play(); Music.isPlaying = true; }
+        } else if (Music.current.source === 'soundcloud') {
+            const iframe = document.getElementById('olm-sc-iframe');
+            if (iframe) {
+                iframe.contentWindow.postMessage(JSON.stringify({ method: Music.isPlaying ? 'pause' : 'play' }), '*');
+                Music.isPlaying = !Music.isPlaying;
+            }
+        }
+        if (islandMode === 'music') renderIslandMusic(true);
+    }
+
+    function stopMusic() {
+        try { if (Music.ytPlayer) { Music.ytPlayer.stopVideo(); Music.ytPlayer.destroy(); Music.ytPlayer = null; } } catch (e) { }
+        try { if (Music.audioEl) { Music.audioEl.pause(); Music.audioEl.src = ''; } } catch (e) { }
+        const sc = document.getElementById('olm-sc-host');
+        if (sc) sc.innerHTML = '';
+        Music.isPlaying = false;
+        Music.currentTime = 0;
+        Music.duration = 0;
+        if (Music.progressTimer) { clearInterval(Music.progressTimer); Music.progressTimer = null; }
+        Music.lastRenderedState = '';
+    }
+
+    function startMusicProgressTimer() {
+        if (Music.progressTimer) clearInterval(Music.progressTimer);
+        Music.progressTimer = setInterval(() => {
+            if (!Music.current) return;
+            if (Music.current.source === 'youtube' && Music.ytPlayer && Music.ytPlayer.getCurrentTime) {
+                try {
+                    Music.currentTime = Music.ytPlayer.getCurrentTime() || 0;
+                    Music.duration = Music.ytPlayer.getDuration() || Music.duration;
+                } catch (e) { }
+            }
+            if (islandMode === 'music' && Music.expanded) updateIslandMusicProgress();
+        }, 1000);
+    }
+
+    function formatTime(sec) {
+        if (!sec || isNaN(sec)) return '0:00';
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    // ============================================
+    // MUSIC MODAL
+    // ============================================
+
+    function openMusicModal() {
+        if (document.getElementById('olm-music-modal')) return;
+        const m = document.createElement('div');
+        m.id = 'olm-music-modal';
+        m.style.cssText = `position: fixed; inset: 0; z-index: 2147483646; background: rgba(0,0,0,0.55); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center;`;
+        m.innerHTML = `
+            <div style="width:90%;max-width:420px;background:rgba(20,20,22,0.95);backdrop-filter:blur(30px);border:0.5px solid rgba(255,255,255,0.1);border-radius:18px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,0.75);color:#fff;font-family:-apple-system,sans-serif;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                    <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#fa2d48,#ff5e3a);display:flex;align-items:center;justify-content:center;">
+                        ${ICONS.music}
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-size:15px;font-weight:700;">Trình phát nhạc</div>
+                        <div style="font-size:11px;color:rgba(255,255,255,0.5);">Dán link nhạc để phát</div>
+                    </div>
+                    <button id="olm-music-close" style="width:28px;height:28px;border-radius:50%;border:none;background:rgba(255,255,255,0.08);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">${ICONS.close}</button>
+                </div>
+                <div style="position:relative;margin:14px 0 10px;">
+                    <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;">${ICONS.link}</span>
+                    <input id="olm-music-url" type="text" placeholder="https://youtube.com/watch?v=..." style="width:100%;padding:11px 12px 11px 36px;background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.1);border-radius:11px;color:#fff;font-size:13px;outline:none;font-family:inherit;">
+                </div>
+                <div style="font-size:10.5px;color:rgba(255,255,255,0.4);line-height:1.5;margin-bottom:14px;">
+                    Hỗ trợ: YouTube · SoundCloud · Nhaccuatui · Zing MP3 · file .mp3 trực tiếp · Apple Music · Spotify
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button id="olm-music-play" style="flex:1;padding:11px;background:linear-gradient(135deg,#fa2d48,#ff5e3a);color:#fff;border:none;border-radius:11px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;">
+                        ${ICONS.play} <span>Phát</span>
+                    </button>
+                    ${Music.current ? `<button id="olm-music-stop" style="padding:11px 14px;background:rgba(255,69,58,0.18);color:#ff6b62;border:none;border-radius:11px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Dừng</button>` : ''}
+                </div>
+            </div>`;
+        document.body.appendChild(m);
+
+        const close = () => m.remove();
+        m.querySelector('#olm-music-close').onclick = close;
+        m.onclick = (e) => { if (e.target === m) close(); };
+
+        const input = m.querySelector('#olm-music-url');
+        input.value = GM_getValue('lastMusicUrl', '');
+        setTimeout(() => input.focus(), 50);
+
+        const doPlay = async () => {
+            const url = input.value.trim();
+            if (!url) { input.focus(); return; }
+            GM_setValue('lastMusicUrl', url);
+            close();
+            await playMusicURL(url);
+        };
+        m.querySelector('#olm-music-play').onclick = doPlay;
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doPlay(); });
+        const stopBtn = m.querySelector('#olm-music-stop');
+        if (stopBtn) stopBtn.onclick = () => { stopMusic(); close(); islandMode = 'idle'; hideDynamicIsland(); };
+    }
+
+    // ============================================
+    // SELECTION SEARCH
+    // ============================================
+
+    function createSelectionHighlight(rect) {
+        if (selectionBadge) selectionBadge.remove();
+        selectionBadge = document.createElement('div');
+        selectionBadge.id = 'olm-selection-highlight';
+        selectionBadge.style.cssText = `position: fixed; left: ${rect.left - 3}px; top: ${rect.top - 3}px; width: ${rect.width + 6}px; height: ${rect.height + 6}px; border: 1.5px solid rgba(10,132,255,0.8); border-radius: 8px; background: rgba(10,132,255,0.06); pointer-events: none; z-index: 2147483645; transition: opacity 0.3s ease;`;
+        document.body.appendChild(selectionBadge);
+    }
+    function hideSelectionHighlight() {
+        if (selectionBadge) {
+            selectionBadge.style.opacity = '0';
+            setTimeout(() => { if (selectionBadge) { selectionBadge.remove(); selectionBadge = null; } }, 300);
+        }
+    }
+
+    function handleTextSelection() {
+        const selection = window.getSelection();
+        const selectedText = cleanText(selection.toString());
+        if (selectedText.length < 3) { hideSelectionHighlight(); return; }
+        const anchor = selection.anchorNode;
+        if (anchor && anchor.parentElement) {
+            let el = anchor.parentElement;
+            while (el) { if (el.id === 'olm-cheat-panel' || el.id === 'olm-dynamic-island' || el.id === 'olm-music-modal') return; el = el.parentElement; }
+        }
+        try {
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            if (rect.width > 0) createSelectionHighlight(rect);
+        } catch (e) { }
+
+        if (islandMode === 'music' && Music.current && Music.isPlaying) {
+            // Don't override music island; just search
+            searchSelectedText(selectedText);
+            return;
+        }
+
+        showDynamicIsland();
+        updateIslandLoading();
+        const searchId = ++islandSearchId;
+        setTimeout(() => {
+            const cur = cleanText(window.getSelection().toString());
+            if (searchId !== islandSearchId) return;
+            if (cur === selectedText && selectedText.length >= 3) searchSelectedText(selectedText);
+        }, 400);
+    }
+
+    async function searchSelectedText(text) {
+        const clean = cleanText(text);
+        if (clean.length < 2) return;
+
+        const teacherAnswer = findAnswerByQuestionText(clean);
+        if (teacherAnswer) {
+            const ans = teacherAnswer.answerText || teacherAnswer.answerLetter;
+            displayAIAnswer(ans, 99, 'DOC');
+            if (teacherAnswer.answerLetter) highlightAnswer(teacherAnswer.answerLetter);
+            if (!(islandMode === 'music' && Music.current && Music.isPlaying)) {
+                updateIslandResult({ text: ans, source: 'DOC' });
+            }
+            updateStats('docHits');
+            return;
+        }
+
+        const cached = getCachedAnswer(clean);
+        if (cached) {
+            displayAIAnswer(cached.answer, 95, 'CACHE');
+            if (cached.answer.match(/^[A-D]/)) highlightAnswer(cached.answer[0]);
+            if (!(islandMode === 'music' && Music.current && Music.isPlaying)) {
+                updateIslandResult({ text: cached.answer, source: 'CACHE' });
+            }
+            updateStats('cacheHits');
+            return;
+        }
+
+        await askAIForAnswer(clean, !(islandMode === 'music' && Music.current && Music.isPlaying));
+    }
+
+    let selectionDebounce = null;
+    function setupSelectionSearch() {
+        if (!CONFIG.selectionSearch) return;
+        document.addEventListener('mouseup', (e) => {
+            let el = e.target;
+            while (el) { if (el.id === 'olm-cheat-panel' || el.id === 'olm-dynamic-island' || el.id === 'olm-music-modal') return; el = el.parentElement; }
+            if (selectionDebounce) clearTimeout(selectionDebounce);
+            selectionDebounce = setTimeout(handleTextSelection, 30);
+        });
+        document.addEventListener('mousedown', (e) => {
+            let el = e.target;
+            while (el) { if (el.id === 'olm-cheat-panel' || el.id === 'olm-dynamic-island' || el.id === 'olm-music-modal') return; el = el.parentElement; }
+            hideSelectionHighlight();
+        });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { hideSelectionHighlight(); if (!(islandMode === 'music' && Music.current)) hideDynamicIsland(); } });
+    }
+
+    // ============================================
+    // SCREENSHOT
+    // ============================================
+
+    function createScreenshotOverlay() {
+        const overlay = document.createElement('div');
+        overlay.id = 'olm-screenshot-overlay';
+        overlay.style.cssText = `position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(3px); z-index: 9999998; cursor: crosshair;`;
+        const hint = document.createElement('div');
+        hint.style.cssText = `position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: rgba(28,28,30,0.95); backdrop-filter: blur(30px); color: #fff; padding: 10px 18px; border-radius: 12px; border: 0.5px solid rgba(255,255,255,0.12); font: 500 13px -apple-system; box-shadow: 0 10px 40px rgba(0,0,0,0.6);`;
+        hint.textContent = 'Kéo chuột để chọn vùng chụp';
+        overlay.appendChild(hint);
+        document.body.appendChild(overlay);
+
+        let startX, startY, box;
+        function down(e) {
+            if (e.target !== overlay) return;
+            startX = e.clientX; startY = e.clientY;
+            box = document.createElement('div');
+            box.style.cssText = `position: fixed; border: 1.5px solid #0a84ff; background: rgba(10,132,255,0.15); box-shadow: 0 0 20px rgba(10,132,255,0.4); border-radius: 6px; z-index: 9999999; pointer-events: none;`;
+            document.body.appendChild(box);
+        }
+        function move(e) {
+            if (!box) return;
+            box.style.left = Math.min(startX, e.clientX) + 'px';
+            box.style.top = Math.min(startY, e.clientY) + 'px';
+            box.style.width = Math.abs(e.clientX - startX) + 'px';
+            box.style.height = Math.abs(e.clientY - startY) + 'px';
+        }
+        function up(e) {
+            if (!box) return;
+            const rect = box.getBoundingClientRect();
+            if (rect.width > 50 && rect.height > 50) captureScreenArea(rect.left, rect.top, rect.width, rect.height);
+            box.remove(); overlay.remove();
+            document.removeEventListener('mousedown', down);
+            document.removeEventListener('mousemove', move);
+            document.removeEventListener('mouseup', up);
+            document.removeEventListener('keydown', esc);
+        }
+        function esc(e) { if (e.key === 'Escape') { if (box) box.remove(); overlay.remove(); document.removeEventListener('mousedown', down); document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.removeEventListener('keydown', esc); } }
+        document.addEventListener('mousedown', down);
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', up);
+        document.addEventListener('keydown', esc);
+    }
+
+    function loadHtml2Canvas() {
+        return new Promise((resolve, reject) => {
+            if (typeof html2canvas !== 'undefined') return resolve();
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            s.onload = resolve; s.onerror = () => reject(new Error('html2canvas load fail'));
+            document.head.appendChild(s);
+        });
+    }
+
+    async function captureScreenArea(left, top, width, height) {
+        try {
+            await loadHtml2Canvas();
+            const panel = document.getElementById('olm-cheat-panel'), island = document.getElementById('olm-dynamic-island');
+            if (panel) panel.style.display = 'none';
+            if (island) island.style.display = 'none';
+            await new Promise(r => setTimeout(r, 50));
+            const canvas = await html2canvas(document.body, { x: left, y: top, width, height, useCORS: true, ignoreElements: (el) => el.id === 'olm-cheat-panel' || el.id === 'olm-screenshot-overlay' || el.id === 'olm-dynamic-island' });
+            if (panel) panel.style.display = '';
+            if (island) island.style.display = '';
+            currentImageBase64 = canvas.toDataURL('image/png');
+            await convertImageToTextAndAnswer();
+        } catch (err) { log('Screenshot error: ' + err, '#ff453a'); }
+    }
+
+    async function convertImageToTextAndAnswer() {
+        if (!currentImageBase64) return;
+        if (!(islandMode === 'music' && Music.current)) {
+            showDynamicIsland(); updateIslandLoading();
+        }
+        try {
+            const res = await gmFetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CONFIG.groqApiKey}` },
+                body: JSON.stringify({
+                    model: CONFIG.groqVisionModel,
+                    messages: [{ role: 'user', content: [
+                        { type: 'text', text: 'Extract ONLY the question text from this image. Ignore options (A,B,C,D), buttons, UI. Output just the question text.' },
+                        { type: 'image_url', image_url: { url: currentImageBase64 } }
+                    ] }],
+                    max_tokens: 1500, temperature: 0.1
+                })
+            });
+            if (!res.ok) throw new Error(`Vision API ${res.status}`);
+            const data = await res.json();
+            const extractedText = data.choices?.[0]?.message?.content?.trim();
+            if (!extractedText) throw new Error('Không đọc được chữ');
+            currentImageBase64 = null;
+
+            const teacherAnswer = findAnswerByQuestionText(extractedText);
+            if (teacherAnswer) {
+                const ans = teacherAnswer.answerText || teacherAnswer.answerLetter;
+                displayAIAnswer(ans, 99, 'DOC');
+                if (teacherAnswer.answerLetter) highlightAnswer(teacherAnswer.answerLetter);
+                if (!(islandMode === 'music' && Music.current)) updateIslandResult({ text: ans, source: 'DOC' });
+                updateStats('docHits');
+            } else {
+                await askAIForAnswer(extractedText, !(islandMode === 'music' && Music.current));
+            }
+        } catch (e) {
+            displayAIAnswer(e.message, null, 'ERR');
+            if (!(islandMode === 'music' && Music.current)) updateIslandError(e.message);
+        }
+    }
+
+    // ============================================
+    // EXPORT
+    // ============================================
+
+    function exportAnswers() {
+        if (!teacherDocAnswers || teacherDocAnswers.length === 0) { alert('Chưa có đáp án. Vào bài thi trước.'); return; }
+        const lines = [];
+        lines.push('OLM CHEAT V6.2 — DANH SÁCH CÂU HỎI & ĐÁP ÁN');
+        lines.push('Ngày xuất: ' + new Date().toLocaleString('vi-VN'));
+        lines.push('Tổng số: ' + teacherDocAnswers.length);
+        lines.push('URL: ' + window.location.href);
+        lines.push('─'.repeat(70));
+        lines.push('');
+        teacherDocAnswers.forEach((qa, i) => {
+            const clean = (s) => String(s == null ? '' : s).replace(/\[IMG:[^\]]+\]/g, '[công thức]');
+            lines.push(`[${String(i + 1).padStart(2, '0')}] ${clean(qa.question)}`);
+            lines.push(`     → Đáp án: ${clean(qa.answerText || qa.answerLetter)}`);
+            lines.push('');
+        });
+        lines.push('─'.repeat(70));
+        lines.push('Made by Danhvux — github.com/danhvux202');
+
+        const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `OLM-DapAn-${Date.now()}.txt`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        if (!(islandMode === 'music' && Music.current)) updateIslandResult({ text: `Đã xuất ${teacherDocAnswers.length} câu`, source: 'DOC' });
+    }
+
+    // ============================================
+    // CONTROL PANEL
+    // ============================================
+
+    function createControlPanel() {
+        if (document.getElementById('olm-cheat-panel')) return;
+        const panel = document.createElement('div');
+        panel.id = 'olm-cheat-panel';
+        panel.innerHTML = `
+<style>
+    #olm-cheat-panel * { box-sizing: border-box; font-family: inherit; letter-spacing: normal; }
+    ${ICON_ANIMS_CSS}
+
+    @keyframes olm-fade-slide { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes olm-panel-in { from { opacity: 0; transform: scale(0.96) translateY(-8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    @keyframes olm-thinking { 0%,60%,100% { transform: translateY(0); opacity: 0.3; } 30% { transform: translateY(-3px); opacity: 1; } }
+    @keyframes olm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes olm-pop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+    .olm-thinking-dots { display: inline-flex; gap: 3px; align-items: center; }
+    .olm-thinking-dots span { width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: olm-thinking 1.2s ease-in-out infinite; }
+    .olm-thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .olm-thinking-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+    #olm-panel-wrap { position: fixed; top: 16px; right: 16px; width: 360px; max-height: 82vh; background: rgba(20,20,22,0.78); backdrop-filter: saturate(180%) blur(30px); -webkit-backdrop-filter: saturate(180%) blur(30px); border: 0.5px solid rgba(255,255,255,0.09); border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.6); z-index: 999999; display: flex; flex-direction: column; overflow: hidden; color: #fff; animation: olm-panel-in 0.4s cubic-bezier(0.34,1.3,0.64,1); }
+
+    #olm-panel-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.07); cursor: grab; user-select: none; }
+    #olm-panel-head:active { cursor: grabbing; }
+    #olm-panel-head .olm-logo { width: 26px; height: 26px; border-radius: 7px; background: #0a84ff; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; box-shadow: 0 2px 8px rgba(10,132,255,0.35); overflow: hidden; }
+    #olm-panel-head .olm-logo .olm-icon { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    #olm-panel-head .olm-logo .olm-icon img { width: 22px; height: 22px; object-fit: contain; }
+    #olm-panel-head .olm-title { flex: 1; font-size: 13.5px; font-weight: 600; letter-spacing: -0.2px; color: #fff; }
+    #olm-panel-head .olm-title span { font-size: 10px; font-weight: 500; color: rgba(255,255,255,0.4); margin-left: 5px; }
+
+    .olm-head-actions { display: flex; gap: 4px; }
+    .olm-icon-btn { width: 28px; height: 28px; border-radius: 50%; border: none; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease; flex-shrink: 0; }
+    .olm-icon-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+    .olm-icon-btn:active { transform: scale(0.9); }
+    .olm-icon-btn .olm-icon { width: 16px; height: 16px; }
+    .olm-icon-btn.danger:hover { background: rgba(255,69,58,0.22); color: #ff453a; }
+    .olm-icon-btn.success:hover { background: rgba(48,209,88,0.22); color: #30d158; }
+    .olm-icon-btn.music-btn-head { background: linear-gradient(135deg, #fa2d48, #ff5e3a); color: #fff; }
+
+    #olm-panel-body { flex: 1; overflow-y: auto; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+    #olm-panel-body::-webkit-scrollbar { width: 4px; }
+    #olm-panel-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+
+    #olm-ai-answer-wrap { background: rgba(255,255,255,0.045); border: 0.5px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 12px; min-height: 56px; display: flex; align-items: center; }
+    #olm-ai-answer { font-size: 12.5px; color: rgba(255,255,255,0.4); line-height: 1.5; word-break: break-word; font-style: italic; width: 100%; }
+
+    .olm-toolbar { display: flex; gap: 6px; padding: 8px; background: rgba(255,255,255,0.045); border-radius: 12px; }
+    .olm-tool { flex: 1; height: 40px; border-radius: 9px; background: transparent; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: rgba(255,255,255,0.5); font-size: 9.5px; font-weight: 600; font-family: inherit; transition: background 0.2s ease, color 0.2s ease; padding: 0; }
+    .olm-tool:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.8); }
+    .olm-tool.on { background: rgba(10,132,255,0.18); color: #4da3ff; }
+    .olm-tool .olm-icon { width: 16px; height: 16px; }
+    .olm-tool .olm-tool-label { font-size: 9px; }
+
+    .olm-cmd-row { display: flex; gap: 6px; }
+    .olm-cmd-btn { flex: 1; height: 36px; border-radius: 9px; background: rgba(255,255,255,0.05); border: none; color: rgba(255,255,255,0.75); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11.5px; font-weight: 600; font-family: inherit; transition: background 0.15s ease, color 0.15s ease; padding: 0 10px; }
+    .olm-cmd-btn:hover { background: rgba(255,255,255,0.09); color: #fff; }
+    .olm-cmd-btn:active { transform: scale(0.97); }
+    .olm-cmd-btn .olm-icon { width: 14px; height: 14px; }
+    .olm-cmd-btn.primary { background: rgba(10,132,255,0.18); color: #4da3ff; }
+    .olm-cmd-btn.music { background: linear-gradient(135deg, rgba(250,45,72,0.25), rgba(255,94,58,0.25)); color: #ff8095; }
+
+    .olm-search-wrap { position: relative; }
+    .olm-search-wrap .olm-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: rgba(255,255,255,0.35); pointer-events: none; }
+    #olm-search-bar { width: 100%; padding: 9px 12px 9px 32px; background: rgba(255,255,255,0.05); border: none; border-radius: 10px; color: #fff; font-size: 13px; outline: none; font-family: inherit; }
+    #olm-search-bar::placeholder { color: rgba(255,255,255,0.3); }
+
+    .olm-stats-foot { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.035); border-radius: 9px; font-size: 10.5px; color: rgba(255,255,255,0.5); font-weight: 500; }
+    .olm-stats-foot b { color: rgba(255,255,255,0.85); font-weight: 700; }
+
+    #olm-qa-list { flex: 1; overflow-y: auto; min-height: 80px; max-height: 260px; padding-right: 3px; }
+    #olm-qa-list::-webkit-scrollbar { width: 4px; }
+    #olm-qa-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+
+    .qa-item { padding: 10px 12px; background: rgba(255,255,255,0.04); border-radius: 10px; margin-bottom: 6px; cursor: pointer; font-size: 12.5px; line-height: 1.5; color: #fff; border-left: 2px solid transparent; word-break: break-word; }
+    .qa-item:hover { background: rgba(255,255,255,0.07); }
+    .qa-item.highlighted { background: rgba(10,132,255,0.14); border-left-color: #0a84ff; }
+    .qa-item .qa-q { color: rgba(255,255,255,0.85); font-weight: 500; margin-bottom: 4px; }
+    .qa-item .qa-a { color: #30d158; font-weight: 600; font-size: 12px; }
+
+    .olm-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 12px; color: rgba(255,255,255,0.35); text-align: center; }
+    .olm-empty .olm-empty-title { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.6); margin-bottom: 4px; }
+    .olm-empty .olm-empty-sub { font-size: 11px; }
+
+    .olm-resize { position: absolute; left: 8px; bottom: 8px; width: 16px; height: 16px; cursor: nesw-resize; opacity: 0.3; }
+    .olm-resize::before { content: ''; position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; border-left: 1.5px solid rgba(255,255,255,0.5); border-bottom: 1.5px solid rgba(255,255,255,0.5); border-bottom-left-radius: 3px; }
+</style>
+
+<div id="olm-panel-wrap">
+    <div id="olm-panel-head">
+        <div class="olm-logo" id="olm-logo"></div>
+        <div class="olm-title">OLM Cheat <span>v6.2</span></div>
+        <div class="olm-head-actions" id="olm-head-actions"></div>
+    </div>
+    <div id="olm-panel-body">
+        <div id="olm-ai-answer-wrap"><div id="olm-ai-answer">Chưa có đáp án</div></div>
+        <div class="olm-toolbar" id="olm-toolbar"></div>
+        <div class="olm-cmd-row" id="olm-cmd-row"></div>
+        <div class="olm-search-wrap">
+            <span id="olm-search-icon"></span>
+            <input type="text" id="olm-search-bar" placeholder="Gõ câu hỏi để tìm...">
+        </div>
+        <div id="olm-qa-list">
+            <div class="olm-empty">
+                <div class="olm-empty-title">Đang tải đáp án</div>
+                <div class="olm-empty-sub">Vào bài thi để tải đề</div>
+            </div>
+        </div>
+        <div class="olm-stats-foot">
+            <span>DOC <b id="olm-stat-doc">0</b> · AI <b id="olm-stat-ai">0</b> · Cache <b id="olm-stat-cache">0</b></span>
+            <span><b id="olm-stat-total">0</b> câu</span>
+        </div>
+    </div>
+    <div class="olm-resize"></div>
+</div>
+`;
+        document.body.appendChild(panel);
+
+        document.getElementById('olm-logo').appendChild(createIcon('olmLogo'));
+
+        const headActions = document.getElementById('olm-head-actions');
+        headActions.appendChild(makeIconBtn('music', 'Nhạc', openMusicModal, 'music-btn-head'));
+        headActions.appendChild(makeIconBtn('chart', 'Thống kê', showStatsModal));
+        headActions.appendChild(makeIconBtn('download', 'Xuất file', exportAnswers, 'success'));
+        headActions.appendChild(makeIconBtn('close', 'Đóng', () => {
+            panel.style.transition = 'opacity 0.2s, transform 0.2s';
+            panel.style.opacity = '0'; panel.style.transform = 'scale(0.96)';
+            setTimeout(() => panel.remove(), 200);
+        }, 'danger'));
+
+        const toolbar = document.getElementById('olm-toolbar');
+        toolbar.appendChild(makeTool('clock', 'Đóng băng', 'freeze', () => {
+            CONFIG.isPaused = !CONFIG.isPaused;
+            if (CONFIG.isPaused) stopAllTimers(); else resumeAllTimers();
+            return CONFIG.isPaused;
+        }, CONFIG.isPaused));
+        toolbar.appendChild(makeTool('robot', 'Tự trả lời', null, () => {
+            CONFIG.autoAnswer = !CONFIG.autoAnswer;
+            GM_setValue('autoAnswer', CONFIG.autoAnswer);
+            return CONFIG.autoAnswer;
+        }, CONFIG.autoAnswer));
+        toolbar.appendChild(makeTool('speaker', 'Âm thanh', null, (el) => {
+            CONFIG.soundEnabled = !CONFIG.soundEnabled;
+            GM_setValue('soundEnabled', CONFIG.soundEnabled);
+            if (CONFIG.soundEnabled) Sound.click();
+            const ic = el.querySelector('.olm-icon');
+            if (ic) ic.innerHTML = ICONS[CONFIG.soundEnabled ? 'speaker' : 'speakerOff'];
+            return CONFIG.soundEnabled;
+        }, CONFIG.soundEnabled));
+        toolbar.appendChild(makeTool('palette', 'Theme', null, () => {
+            const themes = ['dark', 'light', 'amoled'];
+            const idx = themes.indexOf(GM_getValue('theme', 'dark'));
+            GM_setValue('theme', themes[(idx + 1) % themes.length]);
+            applyTheme();
+            return true;
+        }, false));
+
+        const cmdRow = document.getElementById('olm-cmd-row');
+        cmdRow.appendChild(makeCmdBtn('camera', 'Chụp', createScreenshotOverlay, ''));
+        cmdRow.appendChild(makeCmdBtn('search', 'Bôi đen', () => { const s = cleanText(window.getSelection().toString()); if (s) searchSelectedText(s); }, ''));
+        cmdRow.appendChild(makeCmdBtn('music', 'Nhạc', openMusicModal, 'music'));
+        cmdRow.appendChild(makeCmdBtn('command', 'Lệnh', openCommandPalette, 'primary'));
+
+        document.getElementById('olm-search-icon').appendChild(createIcon('search'));
+
+        updateStatsUI();
+        setupSearch();
+        setupDragAndResize();
+    }
+
+    function makeIconBtn(iconName, title, onClick, tone) {
+        const btn = document.createElement('button');
+        btn.className = 'olm-icon-btn' + (tone ? ' ' + tone : '');
+        btn.title = title;
+        btn.appendChild(createIcon(iconName));
+        btn.addEventListener('click', onClick);
+        return btn;
+    }
+
+    function makeTool(iconName, label, key, onToggle, initialState) {
+        const btn = document.createElement('button');
+        btn.className = 'olm-tool' + (initialState ? ' on' : '');
+        btn.dataset.key = key || label;
+        btn.appendChild(createIcon(iconName));
+        const lbl = document.createElement('span');
+        lbl.className = 'olm-tool-label';
+        lbl.textContent = label;
+        btn.appendChild(lbl);
+        btn.addEventListener('click', () => {
+            const on = onToggle(btn);
+            btn.classList.toggle('on', !!on);
+        });
+        return btn;
+    }
+
+    function makeCmdBtn(iconName, label, onClick, cls) {
+        const btn = document.createElement('button');
+        btn.className = 'olm-cmd-btn' + (cls ? ' ' + cls : '');
+        btn.appendChild(createIcon(iconName));
+        const lbl = document.createElement('span');
+        lbl.textContent = label;
+        btn.appendChild(lbl);
+        btn.addEventListener('click', onClick);
+        return btn;
+    }
+
+    function applyTheme() {
+        const theme = GM_getValue('theme', 'dark');
+        const wrap = document.getElementById('olm-panel-wrap');
+        if (!wrap) return;
+        if (theme === 'light') wrap.style.background = 'rgba(242,242,247,0.85)';
+        else if (theme === 'amoled') wrap.style.background = 'rgba(0,0,0,0.96)';
+        else wrap.style.background = 'rgba(20,20,22,0.78)';
+    }
+
+    function updateStatsUI() {
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        set('olm-stat-doc', stats.docHits);
+        set('olm-stat-ai', stats.aiHits);
+        set('olm-stat-cache', stats.cacheHits);
+        set('olm-stat-total', stats.total);
+    }
+
+    // ============================================
+    // QA LIST
+    // ============================================
+
+    let qaListPopulateTimer = null;
+    function populateQAList() {
+        if (qaListPopulateTimer) { clearTimeout(qaListPopulateTimer); qaListPopulateTimer = null; }
+        const list = document.getElementById('olm-qa-list');
+        if (!list) { qaListPopulateTimer = setTimeout(populateQAList, 500); return; }
+        if (!teacherDocAnswers || teacherDocAnswers.length === 0) {
+            const isExamPage = window.location.pathname.match(/\/chu-de\//);
+            list.innerHTML = `<div class="olm-empty"><div class="olm-empty-title">${isExamPage ? 'Đang tải đáp án...' : 'Chưa vào bài thi'}</div><div class="olm-empty-sub">${isExamPage ? 'Chờ chút' : 'Vào bài thi để tải đề'}</div></div>`;
+            return;
+        }
+        list.innerHTML = '';
+        teacherDocAnswers.forEach((qa, index) => {
+            const item = document.createElement('div');
+            item.className = 'qa-item';
+            item.dataset.index = index;
+            const clean = (s) => String(s == null ? '' : s).replace(/\[IMG:[^\]]+\]/g, '[công thức]');
+            item.innerHTML = `<div class="qa-q">${clean(qa.question)}</div><div class="qa-a">→ ${clean(qa.answerText || qa.answerLetter)}</div>`;
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.qa-item').forEach(i => i.classList.remove('highlighted'));
+                item.classList.add('highlighted');
+                displayAIAnswer(qa.answerText || qa.answerLetter, 99, 'DOC');
+                if (qa.answerLetter) highlightAnswer(qa.answerLetter);
+            });
+            list.appendChild(item);
+        });
+    }
+
+    function setupSearch() {
+        const bar = document.getElementById('olm-search-bar');
+        if (!bar) return;
+        let searchTimer = null;
+        bar.addEventListener('input', function () {
+            if (searchTimer) clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                const q = cleanText(this.value);
+                if (!q) {
+                    document.querySelectorAll('.qa-item').forEach(i => { i.style.display = ''; i.classList.remove('highlighted'); });
+                    return;
+                }
+                const match = findBestMatch(q, teacherDocAnswers);
+                const nq = normalizeAggressive(q);
+                document.querySelectorAll('.qa-item').forEach(item => {
+                    const qa = teacherDocAnswers[parseInt(item.dataset.index)];
+                    if (!qa) return;
+                    if (match && qa === match) { item.style.display = ''; item.classList.add('highlighted'); item.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                    else {
+                        const nQ = normalizeAggressive(qa.question);
+                        if (nQ.includes(nq) || nq.includes(nQ)) item.style.display = '';
+                        else { item.style.display = 'none'; item.classList.remove('highlighted'); }
+                    }
+                });
+            }, 150);
+        });
+    }
+
+    function setupDragAndResize() {
+        const wrap = document.getElementById('olm-panel-wrap');
+        const head = document.getElementById('olm-panel-head');
+        const handle = wrap.querySelector('.olm-resize');
+        let dragState = null;
+        head.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0 && e.pointerType === 'mouse') return;
+            if (e.target.closest('button')) return;
+            const rect = wrap.getBoundingClientRect();
+            wrap.style.right = 'auto';
+            wrap.style.left = rect.left + 'px';
+            wrap.style.top = rect.top + 'px';
+            dragState = { sx: e.clientX, sy: e.clientY, ox: rect.left, oy: rect.top };
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+        });
+        function onMove(e) {
+            if (!dragState) return;
+            e.preventDefault();
+            const rect = wrap.getBoundingClientRect();
+            const x = Math.max(6, Math.min(window.innerWidth - rect.width - 6, dragState.ox + e.clientX - dragState.sx));
+            const y = Math.max(6, Math.min(window.innerHeight - rect.height - 6, dragState.oy + e.clientY - dragState.sy));
+            wrap.style.left = x + 'px';
+            wrap.style.top = y + 'px';
+        }
+        function onUp() { dragState = null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); }
+
+        let rState = null;
+        handle.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0 && e.pointerType === 'mouse') return;
+            e.preventDefault(); e.stopPropagation();
+            const rect = wrap.getBoundingClientRect();
+            rState = { sx: e.clientX, sy: e.clientY, ow: rect.width, oh: rect.height, ol: rect.left };
+            window.addEventListener('pointermove', onResize);
+            window.addEventListener('pointerup', onResizeUp);
+        });
+        function onResize(e) {
+            if (!rState) return;
+            const dx = rState.sx - e.clientX;
+            const dy = e.clientY - rState.sy;
+            const w = Math.max(300, rState.ow + dx);
+            const h = Math.max(200, rState.oh + dy);
+            wrap.style.width = w + 'px';
+            wrap.style.height = h + 'px';
+            wrap.style.maxHeight = '90vh';
+            wrap.style.left = (rState.ol - (w - rState.ow)) + 'px';
+        }
+        function onResizeUp() { rState = null; window.removeEventListener('pointermove', onResize); window.removeEventListener('pointerup', onResizeUp); }
+    }
+
+    // ============================================
+    // COMMAND PALETTE
+    // ============================================
+
+    function openCommandPalette() {
+        if (document.getElementById('olm-palette')) return;
+        const p = document.createElement('div');
+        p.id = 'olm-palette';
+        p.style.cssText = `position: fixed; inset: 0; z-index: 2147483647; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); display: flex; align-items: flex-start; justify-content: center; padding-top: 15vh;`;
+        const commands = [
+            { icon: 'music', label: 'Mở trình phát nhạc', kbd: 'Ctrl+M', fn: () => { close(); openMusicModal(); } },
+            { icon: 'camera', label: 'Chụp màn hình', kbd: 'Ctrl+Space', fn: () => { close(); createScreenshotOverlay(); } },
+            { icon: 'search', label: 'Tìm đáp án câu đang chọn', kbd: 'Ctrl+Shift+S', fn: () => { close(); const s = cleanText(window.getSelection().toString()); if (s) searchSelectedText(s); } },
+            { icon: 'download', label: 'Xuất file đáp án', kbd: 'Ctrl+Shift+E', fn: () => { close(); exportAnswers(); } },
+            { icon: 'clock', label: 'Bật/tắt đóng băng thời gian', kbd: '', fn: () => { close(); document.querySelector('[data-key="freeze"]').click(); } },
+            { icon: 'robot', label: 'Bật/tắt tự động trả lời', kbd: '', fn: () => { close(); document.querySelector('[data-key="Tự trả lời"]').click(); } },
+            { icon: 'database', label: 'Xóa cache đáp án', kbd: '', fn: () => { close(); answerCache = {}; GM_setValue('answerCache', {}); updateIslandResult({ text: 'Đã xóa cache', source: 'AI' }); } },
+            { icon: 'chart', label: 'Xem thống kê', kbd: '', fn: () => { close(); showStatsModal(); } },
+            { icon: 'bolt', label: 'Tải lại đáp án', kbd: '', fn: () => { close(); teacherDocAnswers = null; downloadAndParseTeacherDoc(); } }
+        ];
+        let filtered = commands, sel = 0;
+        function close() { p.remove(); document.removeEventListener('keydown', key); }
+        function render() {
+            const listEl = document.getElementById('olm-pal-list');
+            listEl.innerHTML = filtered.map((c, i) => `
+                <div class="olm-pal-item" data-i="${i}" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:9px;cursor:pointer;background:${i === sel ? 'rgba(10,132,255,0.18)' : 'transparent'};">
+                    <span class="olm-pal-ic" data-ic="${c.icon}" style="width:18px;height:18px;color:rgba(255,255,255,0.8);"></span>
+                    <span style="flex:1;font-size:13.5px;color:#fff;font-weight:500;">${c.label}</span>
+                    ${c.kbd ? `<span style="font-size:10px;color:rgba(255,255,255,0.45);padding:3px 7px;background:rgba(255,255,255,0.06);border-radius:5px;font-family:monospace;">${c.kbd}</span>` : ''}
+                </div>`).join('') || `<div style="padding:20px;text-align:center;color:rgba(255,255,255,0.4);font-size:12.5px;">Không có lệnh</div>`;
+            listEl.querySelectorAll('.olm-pal-item').forEach(el => {
+                const cmd = filtered[parseInt(el.dataset.i)];
+                const ic = el.querySelector('.olm-pal-ic');
+                if (ic && cmd) ic.appendChild(createIcon(cmd.icon));
+                el.onmouseenter = () => { sel = parseInt(el.dataset.i); render(); };
+                el.onclick = () => cmd.fn();
+            });
+        }
+        p.innerHTML = `
+            <div style="width:90%;max-width:480px;background:rgba(20,20,22,0.92);backdrop-filter:blur(30px);border:0.5px solid rgba(255,255,255,0.1);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.7);overflow:hidden;">
+                <div style="padding:12px 16px;border-bottom:0.5px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:10px;">
+                    <span style="color:rgba(255,255,255,0.4);font-size:14px;">⌘</span>
+                    <input id="olm-pal-input" type="text" placeholder="Nhập lệnh..." style="flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:14px;font-family:inherit;font-weight:500;">
+                    <span style="font-size:10px;color:rgba(255,255,255,0.4);padding:3px 7px;background:rgba(255,255,255,0.06);border-radius:5px;font-family:monospace;">ESC</span>
+                </div>
+                <div id="olm-pal-list" style="padding:6px;max-height:340px;overflow-y:auto;"></div>
+            </div>`;
+        document.body.appendChild(p);
+        const input = document.getElementById('olm-pal-input');
+        render(); setTimeout(() => input.focus(), 40);
+        input.addEventListener('input', () => {
+            const q = input.value.toLowerCase().trim();
+            filtered = q ? commands.filter(c => c.label.toLowerCase().includes(q)) : commands;
+            sel = 0; render();
+        });
+        function key(e) {
+            if (e.key === 'Escape') close();
+            else if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel + 1, filtered.length - 1); render(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(sel - 1, 0); render(); }
+            else if (e.key === 'Enter') { e.preventDefault(); if (filtered[sel]) filtered[sel].fn(); }
+        }
+        document.addEventListener('keydown', key);
+        p.onclick = (e) => { if (e.target === p) close(); };
+    }
+
+    // ============================================
+    // STATS MODAL
+    // ============================================
+
+    function showStatsModal() {
+        const m = document.createElement('div');
+        m.style.cssText = `position: fixed; inset: 0; z-index: 2147483647; background: rgba(0,0,0,0.55); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center;`;
+        m.innerHTML = `
+            <div style="width:90%;max-width:340px;background:rgba(20,20,22,0.94);backdrop-filter:blur(30px);border:0.5px solid rgba(255,255,255,0.1);border-radius:18px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.7);color:#fff;font-family:-apple-system,sans-serif;">
+                <div style="font-size:15px;font-weight:700;margin-bottom:16px;">Thống kê</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+                    ${[['Tổng câu', stats.total, '#fff'],['Đã trả lời', stats.answered, '#fff'],['Từ đề', stats.docHits, '#30d158'],['Từ AI', stats.aiHits, '#0a84ff'],['Từ cache', stats.cacheHits, '#bf5af2']].map(([k, v, c]) => `
+                        <div style="background:rgba(255,255,255,0.05);padding:10px;border-radius:9px;">
+                            <div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">${k}</div>
+                            <div style="font-size:19px;font-weight:700;margin-top:3px;color:${c};">${v}</div>
+                        </div>`).join('')}
+                </div>
+                <button id="olm-stats-ok" style="width:100%;padding:11px;background:#0a84ff;color:#fff;border:none;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">Đóng</button>
+            </div>`;
+        document.body.appendChild(m);
+        m.querySelector('#olm-stats-ok').onclick = () => m.remove();
+        m.onclick = (e) => { if (e.target === m) m.remove(); };
+    }
+
+    // ============================================
+    // ANTI-CHEAT / TIME CONTROL (giữ nguyên)
+    // ============================================
+
+    function hijackEXAMUI() {
+        if (!window.EXAM_UI) return false;
+        if (EXAM_UI.getData) {
+            const orig = EXAM_UI.getData;
+            EXAM_UI.getData = function (key) {
+                const d = orig.call(this, key);
+                if (key === 'asubmit' || key === 'count_log') return 0;
+                return d;
+            };
+        }
+        if (EXAM_UI.setData) {
+            const orig = EXAM_UI.setData;
+            EXAM_UI.setData = function (key, value) {
+                if (key === 'count_log') return;
+                return orig.call(this, key, value);
+            };
+        }
+        return true;
+    }
+
+    function hijackCATEUI() {
+        if (!window.CATE_UI) return false;
+        if (window.CATE_UI.timeNext) {
+            const orig = window.CATE_UI.timeNext;
+            window.CATE_UI.timeNext = function () {
+                if (timeFrozen) {
+                    const timer = window.CATE_UI.getTimer();
+                    const saved = timer.time_spent;
+                    orig.call(this);
+                    timer.time_spent = saved;
+                    try {
+                        const data = window.CATE_UI.getData();
+                        let key = 'time_spent:' + data.id_page_user + '.' + data.id_category;
+                        if (data.id_courseware) key += '.' + data.id_courseware;
+                        localStorage.setItem(key, JSON.stringify(frozenTimeSpent));
+                    } catch (e) { }
+                    return;
+                }
+                return orig.call(this);
+            };
+        }
+        if (window.CATE_UI.saveResult) {
+            const orig = window.CATE_UI.saveResult;
+            window.CATE_UI.saveResult = function (data, callback, includeTime) {
+                if (data && data.log) { if (callback) callback(true); return; }
+                if (timeFrozen && frozenTimeSpent !== null) { data = data || {}; data.time_spent = frozenTimeSpent; }
+                return orig.call(this, data, callback, includeTime);
+            };
+        }
+        if (window.CATE_UI.saveLocalRecord) {
+            const orig = window.CATE_UI.saveLocalRecord;
+            window.CATE_UI.saveLocalRecord = function (key, data) {
+                if (timeFrozen && key === 'time_spent') return;
+                return orig.call(this, key, data);
+            };
+        }
+        return true;
+    }
+
+    function bypassTabDetection() {
+        try {
+            Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+            Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+        } catch (e) { }
+
+        const origAddEL = EventTarget.prototype.addEventListener;
+        EventTarget.prototype.addEventListener = function (type, listener, options) {
+            const blocked = ['visibilitychange', 'blur', 'focus', 'pause', 'resume', 'fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'msfullscreenchange', 'beforeunload'];
+            if (blocked.includes(type)) return;
+            return origAddEL.call(this, type, listener, options);
+        };
+
+        ['fullscreenElement', 'webkitFullscreenElement', 'mozFullScreenElement', 'msFullscreenElement'].forEach(prop => {
+            try { Object.defineProperty(document, prop, { get: () => document.documentElement, configurable: true }); } catch (e) { }
+        });
+
+        ['copy', 'paste', 'cut', 'contextmenu', 'selectstart'].forEach(evt => {
+            document.addEventListener(evt, (e) => e.stopImmediatePropagation(), true);
+        });
+
+        // Enable selection - run once + slow polling
+        const enableSelection = () => {
+            if (!document.body) return;
+            document.body.style.userSelect = 'auto';
+        };
+        enableSelection();
+        // Poll much slower (5s)
+        setInterval(enableSelection, 5000);
+
+        const origPrevent = Event.prototype.preventDefault;
+        Event.prototype.preventDefault = function () {
+            if (this.type === 'keydown') {
+                const k = this.key, c = this.ctrlKey, s = this.shiftKey;
+                if (k === 'F12' || (c && s && k === 'I') || (c && s && k === 'C') || (c && k === 'U')) return;
+            }
+            if (this.type === 'contextmenu') return;
+            return origPrevent.call(this);
+        };
+
+        const blockedEndpoints = ['teacher-static', 'saveResult', 'teacher-log', 'newexam-log', 'course/teacher-static'];
+        const origFetch = window.fetch;
+        window.fetch = function (...args) {
+            const url = String(args[0]);
+            if (blockedEndpoints.some(e => url.includes(e))) return Promise.resolve(new Response('{"success":true}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+            return origFetch.apply(this, args);
+        };
+
+        const origOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (m, url, ...rest) {
+            if (blockedEndpoints.some(e => url.includes(e))) this._blocked = true;
+            return origOpen.apply(this, [m, url, ...rest]);
+        };
+        const origSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function (...args) { if (this._blocked) return; return origSend.apply(this, args); };
+
+        // Cleanup warnings - run only when needed via MutationObserver (throttled)
+        const cleanupWarnings = () => {
+            const scoreEl = document.getElementById('tmp-score');
+            if (scoreEl && scoreEl.textContent.includes('Dấu hiệu gian lận')) {
+                scoreEl.textContent = '';
+                scoreEl.classList.remove('text-danger', 'font-weight-bold');
+            }
+            document.querySelectorAll('.alert-danger, .alert-warning').forEach(el => {
+                const t = el.textContent;
+                if (t.includes('rời khỏi màn hình') || t.includes('toàn màn hình') || t.includes('gian lận') || (t.includes('Cảnh báo') && t.includes('thoát'))) el.remove();
+            });
+        };
+        cleanupWarnings();
+        // Throttled cleanup via slow interval
+        setInterval(cleanupWarnings, 3000);
+
+        window._dialogAlert = () => { };
+        window._dialogConfirm = (t, m, cb) => { if (cb) cb(true); };
+
+        const origSetItem = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+            if (key.startsWith('time_spent:') && localStorage.getItem('olm_time_frozen') === 'true') {
+                const fv = localStorage.getItem('olm_frozen_time');
+                if (fv) return origSetItem.call(this, key, fv);
+                return;
+            }
+            return origSetItem.call(this, key, value);
+        };
+    }
+
+    function stopAllTimers() {
+        if (window.CATE_UI) {
+            try {
+                const timer = window.CATE_UI.getTimer();
+                if (timer) {
+                    timeFrozen = true;
+                    frozenTimeSpent = timer.time_spent;
+                    const data = window.CATE_UI.getData();
+                    const lsKey = 'time_spent:' + data.id_page_user + '.' + data.id_category;
+                    const fullKey = data.id_courseware ? lsKey + '.' + data.id_courseware : lsKey;
+                    localStorage.setItem(fullKey, JSON.stringify(frozenTimeSpent));
+                    localStorage.setItem('olm_time_frozen', 'true');
+                    localStorage.setItem('olm_frozen_time', JSON.stringify(frozenTimeSpent));
+                }
+            } catch (e) { }
+        }
+        const timerEl = document.getElementById('timecount');
+        if (timerEl) {
+            frozenDisplayTime = timerEl.textContent;
+            if (timerObserver) timerObserver.disconnect();
+            timerObserver = new MutationObserver(() => {
+                if (timeFrozen && timerEl.textContent !== frozenDisplayTime) timerEl.textContent = frozenDisplayTime;
+            });
+            timerObserver.observe(timerEl, { childList: true, characterData: true, subtree: true });
+        }
+    }
+
+    function resumeAllTimers() {
+        timeFrozen = false;
+        frozenTimeSpent = null;
+        frozenDisplayTime = null;
+        try { localStorage.removeItem('olm_time_frozen'); localStorage.removeItem('olm_frozen_time'); } catch (e) { }
+        if (timerObserver) { timerObserver.disconnect(); timerObserver = null; }
+    }
+
+    // ============================================
+    // KEYBOARD
+    // ============================================
+
+    function setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key.toLowerCase() === 'k') { e.preventDefault(); openCommandPalette(); return; }
+            if (e.ctrlKey && e.key.toLowerCase() === 'm') { e.preventDefault(); openMusicModal(); return; }
+            if (e.ctrlKey && e.code === 'Space') { e.preventDefault(); createScreenshotOverlay(); return; }
+            if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); const s = cleanText(window.getSelection().toString()); if (s.length >= 3) searchSelectedText(s); return; }
+            if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'e') { e.preventDefault(); exportAnswers(); return; }
+            if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') { e.preventDefault(); showStatsModal(); return; }
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            switch (e.key.toLowerCase()) {
+                case 'w': case 'a': selectAnswer('A'); break;
+                case 's': case 'b': selectAnswer('B'); break;
+                case 'd': case 'c': selectAnswer('C'); break;
+                case 'e': selectAnswer('D'); break;
+            }
+        });
+    }
+
+    // ============================================
+    // INIT
+    // ============================================
+
+    function init() {
+        try { bypassTabDetection(); } catch (e) { console.error('bypass err:', e); }
+        try { setupKeyboardShortcuts(); } catch (e) { console.error('kb err:', e); }
+
+        // Wait for body
+        const tryInitUI = () => {
+            if (!document.body) { setTimeout(tryInitUI, 200); return; }
+            try { createControlPanel(); } catch (e) { console.error('panel err:', e); }
+            try { createDynamicIsland(); } catch (e) { console.error('island err:', e); }
+            try { setupSelectionSearch(); } catch (e) { console.error('select err:', e); }
+            try { startQuestionMonitoring(); } catch (e) { console.error('monitor err:', e); }
+        };
+        tryInitUI();
+
+        try {
+            if (localStorage.getItem('olm_time_frozen') === 'true') {
+                const t = localStorage.getItem('olm_frozen_time');
+                if (t) { timeFrozen = true; frozenTimeSpent = JSON.parse(t); CONFIG.isPaused = true; }
+            }
+        } catch (e) { }
+
+        // Retry hijack
+        if (!hijackEXAMUI()) {
+            let n = 0;
+            const p = setInterval(() => {
+                if (hijackEXAMUI() || ++n > 50) clearInterval(p);
+            }, 200);
+        }
+        if (!hijackCATEUI()) {
+            let n = 0;
+            const p = setInterval(() => {
+                if (hijackCATEUI() || ++n > 50) clearInterval(p);
+            }, 200);
+        }
+
+        // Delay doc download until DOM stable
+        setTimeout(() => downloadAndParseTeacherDoc().catch(e => console.error('doc err:', e)), 1500);
+
+        window.olmCheat = {
+            select: selectAnswer, config: CONFIG, version: CONFIG.version,
+            refreshTeacherDoc: downloadAndParseTeacherDoc, getTeacherDoc: () => teacherDocAnswers,
+            search: (t) => searchSelectedText(t),
+            export: exportAnswers, stats: () => stats,
+            clearCache: () => { answerCache = {}; GM_setValue('answerCache', {}); },
+            palette: openCommandPalette,
+            setApiKey: (k) => { CONFIG.groqApiKey = k; GM_setValue('groqApiKey', k); },
+            music: { play: playMusicURL, stop: stopMusic, toggle: toggleMusicPlayPause, state: () => Music }
+        };
+
+        console.log('%c[OLM CHEAT V6.2] Loaded.', 'color: #0a84ff; font-size: 14px; font-weight: 600;');
+    }
+
+    // Wait for load
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
+    else setTimeout(init, 100);
+
+})();
